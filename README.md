@@ -1,4 +1,4 @@
-# Litestar Aiosql
+# Litestar SAQ
 
 > [!IMPORTANT]
 > This plugin currently contains minimal features and is a work-in-progress
@@ -6,7 +6,7 @@
 ## Installation
 
 ```shell
-pip install litestar-aiosql
+pip install litestar-saq
 ```
 
 ## Usage
