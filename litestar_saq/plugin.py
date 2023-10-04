@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, TypeVar
 from litestar.di import Provide
 from litestar.plugins import CLIPluginProtocol, InitPluginProtocol
 
-from litestar_saq import dependencies
 from litestar_saq.config import SAQConfig
 
 __all__ = ["SAQConfig", "SAQPlugin"]
@@ -46,7 +45,7 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
         app_config.dependencies.update(
             {
                 self._config.queues_dependency_key: Provide(
-                    dependency=dependencies.provide_queues,
+                    dependency=self._config.provide_queues,
                     sync_to_thread=False,
                 ),
             },
