@@ -30,10 +30,6 @@ class CronJob(saq.CronJob):
     job_description: str | None = None
 
 
-class BackgroundTaskError(Exception):
-    """Base class for `Task` related exceptions."""
-
-
 class Queue(saq.Queue):
     """[SAQ Queue](https://github.com/tobymao/saq/blob/master/saq/queue.py).
 
@@ -49,12 +45,23 @@ class Queue(saq.Queue):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize a new queue."""
-        """
-        kwargs.setdefault("dump", serialization.to_json)
-        kwargs.setdefault("load", serialization.from_json)
-        kwargs.setdefault("name", "background-tasks")
-        """
+        self._namespace = kwargs.pop("queue_namespace", "saq")
         super().__init__(*args, **kwargs)
+
+    def namespace(self, key: str) -> str:
+        """Make the namespace unique per app."""
+        return f"{self._namespace}:{self.name}:{key}"
+
+    def job_id(self, job_key: str) -> str:
+        """Job ID.
+
+        Args:
+            job_key (str): Sets the job ID for the given key
+
+        Returns:
+            str: Job ID for the specified key
+        """
+        return f"{self._namespace}:{self.name}:job:{job_key}"
 
 
 class Worker(saq.Worker):
