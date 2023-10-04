@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from litestar import Controller, MediaType, get, post
-from litestar.di import Provide
 from litestar.exceptions import NotFoundException
 
-from litestar_saq import dependencies, info, urls
+from litestar_saq import info, urls
 
 if TYPE_CHECKING:
     from saq.types import QueueInfo
@@ -16,9 +15,6 @@ if TYPE_CHECKING:
 
 class WorkerController(Controller):
     tags = ["Worker"]
-    dependencies = {
-        "queues": Provide(dependencies.provide_queues),
-    }
 
     @get(
         operation_id="WorkerQueueList",
