@@ -7,7 +7,7 @@ from litestar_saq.base import Queue, Worker
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Collection
 
-    import saq
+    from saq import CronJob
     from saq.types import Context
 
 DEFAULT_CONCURRENCY = 10
@@ -16,7 +16,7 @@ DEFAULT_CONCURRENCY = 10
 def create_worker_instance(
     queue: Queue,
     tasks: Collection[Callable[..., Any] | tuple[str, Callable]],
-    scheduled_tasks: Collection[saq.CronJob] | None = None,
+    scheduled_tasks: Collection[CronJob] | None = None,
     startup: Callable[[Context], Awaitable[Any]] | None = None,
     shutdown: Callable[[Context], Awaitable[Any]] | None = None,
     before_process: Callable[[Context], Awaitable[Any]] | None = None,

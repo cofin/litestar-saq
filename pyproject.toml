@@ -63,6 +63,7 @@ linting = [
   "ruff>=0.0.287",
   "types-click",
   "types-redis",
+  "types-croniter",
 ]
 test = [
   "pytest>=7.4.1",

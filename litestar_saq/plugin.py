@@ -6,6 +6,7 @@ from litestar.di import Provide
 from litestar.plugins import CLIPluginProtocol, InitPluginProtocol
 
 from litestar_saq.config import SAQConfig
+from litestar_saq.controllers import SaqController
 
 __all__ = ["SAQConfig", "SAQPlugin"]
 
@@ -50,6 +51,8 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
                 ),
             },
         )
+        if self._config.web_enabled:
+            app_config.route_handlers.append(SaqController)
         app_config.on_shutdown.append(self._config.on_shutdown)
         app_config.signature_namespace.update(self._config.signature_namespace)
         return app_config
