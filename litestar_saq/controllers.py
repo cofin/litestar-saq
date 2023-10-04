@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from litestar_saq.base import Queue
 
 
-class WorkerController(Controller):
+class SAQController(Controller):
     tags = ["Worker"]
 
     @get(
