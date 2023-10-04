@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
 from redis.asyncio import ConnectionPool, Redis
-from saq.types import QueueInfo
+from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
-from litestar_saq.base import CronJob, Job, Queue, Worker, WorkerFunction
+from litestar_saq.base import CronJob, Job, Queue, Worker
 
 if TYPE_CHECKING:
     from typing import Any
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-def serializer(value: Any) -> bytes:
+def serializer(value: Any) -> str:
     """Serialize JSON field values.
 
     Args:
@@ -28,14 +28,14 @@ def serializer(value: Any) -> bytes:
     Returns:
         JSON string.
     """
-    return encode_json(value)
+    return encode_json(value).decode("utf-8")
 
 
 @dataclass
 class SAQConfig:
     """SAQ Configuration."""
 
-    queue_configs: list[QueueConfig]
+    queue_configs: list[QueueConfig] = field(default_factory=lambda: [QueueConfig()])
     """Configuration for Queues"""
     redis: Redis | None = None
     """Redis URL to connect with."""
@@ -47,11 +47,6 @@ class SAQConfig:
     """Current configured queue instances.  When None, queues will be auto-created on startup"""
     queues_dependency_key: str = field(default="task_queues")
     """Key to use for storing dependency information in litestar."""
-    worker_concurrency: int = 10
-    """The number of concurrent jobs allowed to execute per worker.
-
-    Default is set to 10.
-    """
     worker_processes: int = 1
     """The number of worker processes to spawn.
 
@@ -59,11 +54,11 @@ class SAQConfig:
     """
     web_enabled: bool = False
     """If true, the worker admin UI is launched on worker startup.."""
-    json_deserializer: Callable[[str], Any] = decode_json
+    json_deserializer: LoadType = decode_json
     """This is a Python callable that will
     convert a JSON string to a Python object. By default, this is set to Litestar's
     :attr:`decode_json() <.serialization.decode_json>` function."""
-    json_serializer: Callable[[Any], bytes] = serializer
+    json_serializer: DumpType = serializer
     """This is a Python callable that will render a given object as JSON.
     By default, Litestar's :attr:`encode_json() <.serialization.encode_json>` is used."""
 
@@ -79,7 +74,7 @@ class SAQConfig:
         Returns:
             A string keyed dict of names to be added to the namespace for signature forward reference resolution.
         """
-        return {"Queue": Queue, "Worker": Worker, "QueueInfo": QueueInfo, "Job": Job}
+        return {"Queue": Queue, "Worker": Worker, "QueueInfo": QueueInfo, "Job": Job, "QueueStats": QueueStats}
 
     async def on_shutdown(self, app: Litestar) -> None:
         """Disposes of the SAQ Workers.
@@ -128,9 +123,9 @@ class SAQConfig:
         """
         if self.queue_instances is not None:
             return self.queue_instances
-
-        self.queue_instances = {
-            queue_config.name: Queue(
+        self.queue_instances = {}
+        for queue_config in self.queue_configs:
+            self.queue_instances[queue_config.name] = Queue(
                 queue_namespace=self.namespace,
                 redis=self.get_redis(),
                 name=queue_config.name,
@@ -138,8 +133,6 @@ class SAQConfig:
                 load=self.json_deserializer,
                 max_concurrent_ops=queue_config.max_concurrent_ops,
             )
-            for queue_config in self.queue_configs
-        }
         return self.queue_instances
 
 
@@ -149,8 +142,15 @@ class QueueConfig:
 
     redis: Redis | None = None
     name: str = "default"
+    concurrency: int = 10
     max_concurrent_ops: int = 20
-    tasks: list[WorkerFunction] = field(default_factory=list)
+    tasks: list[ReceivesContext] = field(default_factory=list)
     """Allowed list of functions to execute in this queue"""
     scheduled_tasks: list[CronJob] = field(default_factory=list)
     """Scheduled cron jobs to execute in this queue."""
+    startup: ReceivesContext | None = None
+    shutdown: ReceivesContext | None = None
+    before_process: ReceivesContext | None = None
+    after_process: ReceivesContext | None = None
+    timers: PartialTimersDict | None = None
+    dequeue_timeout: float = 0
