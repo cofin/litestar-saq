@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, TypeVar
 from litestar.di import Provide
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.plugins import CLIPluginProtocol, InitPluginProtocol
+from litestar.static_files import StaticFilesConfig
 
 from litestar_saq.base import Queue, Worker
 from litestar_saq.config import SAQConfig
@@ -56,7 +57,17 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
             },
         )
         if self._config.web_enabled:
+            app_config.static_files_config.append(
+                StaticFilesConfig(
+                    directories=[self._config.static_files],
+                    path=f"{self._config.web_path}/static",
+                    name="saq",
+                    html_mode=False,
+                    opt={"exclude_from_auth": True},
+                ),
+            )
             app_config.route_handlers.append(SAQController)
+        app_config.on_startup.append(self._config.update_app_state)
         app_config.on_shutdown.append(self._config.on_shutdown)
         app_config.signature_namespace.update(self._config.signature_namespace)
         return app_config

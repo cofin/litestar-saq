@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
@@ -9,6 +10,7 @@ from redis.asyncio import ConnectionPool, Redis
 from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
 from litestar_saq.base import CronJob, Job, Queue, Worker
+from litestar_saq.util import module_to_os_path
 
 if TYPE_CHECKING:
     from typing import Any
@@ -29,6 +31,10 @@ def serializer(value: Any) -> str:
         JSON string.
     """
     return encode_json(value).decode("utf-8")
+
+
+def _get_static_files() -> Path:
+    return Path(module_to_os_path("saq.web") / "static")
 
 
 @dataclass
@@ -61,6 +67,8 @@ class SAQConfig:
     json_serializer: DumpType = serializer
     """This is a Python callable that will render a given object as JSON.
     By default, Litestar's :attr:`encode_json() <.serialization.encode_json>` is used."""
+    static_files: Path = field(default_factory=_get_static_files)
+    web_path = "/saq"
 
     def __post_init__(self) -> None:
         if self.redis is not None and self.redis_url is not None:
@@ -134,6 +142,20 @@ class SAQConfig:
                 max_concurrent_ops=queue_config.max_concurrent_ops,
             )
         return self.queue_instances
+
+    def create_app_state_items(self) -> dict[str, Any]:
+        """Key/value pairs to be stored in application state."""
+        return {
+            self.queues_dependency_key: self.get_queues(),
+        }
+
+    def update_app_state(self, app: Litestar) -> None:
+        """Set the app state with worker queues.
+
+        Args:
+            app: The ``Litestar`` instance.
+        """
+        app.state.update(self.create_app_state_items())
 
 
 @dataclass

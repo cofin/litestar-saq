@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class SAQController(Controller):
-    tags = ["Worker"]
+    tags = ["SAQ"]
 
     @get(
         operation_id="WorkerQueueList",
@@ -25,9 +25,9 @@ class SAQController(Controller):
         summary="Queue List",
         description="List configured worker queues.",
     )
-    async def queue_list(self, queues: dict[str, Queue]) -> dict[str, list[QueueInfo]]:
+    async def queue_list(self, task_queues: dict[str, Queue]) -> dict[str, list[QueueInfo]]:
         """Get Worker queues."""
-        return {"queues": [await queue.info() for queue in queues.values()]}
+        return {"queues": [await queue.info() for queue in task_queues.values()]}
 
     @get(
         operation_id="WorkerQueueDetail",
@@ -38,9 +38,9 @@ class SAQController(Controller):
         summary="Queue Detail",
         description="List queue details.",
     )
-    async def queue_detail(self, queues: dict[str, Queue], queue_id: str) -> dict[str, QueueInfo]:
+    async def queue_detail(self, task_queues: dict[str, Queue], queue_id: str) -> dict[str, QueueInfo]:
         """Get queue information."""
-        queue = queues.get(queue_id)
+        queue = task_queues.get(queue_id)
         if not queue:
             msg = f"Could not find the {queue_id} queue"
             raise NotFoundException(msg)
@@ -55,9 +55,9 @@ class SAQController(Controller):
         summary="Job Details",
         description="List job details.",
     )
-    async def job_detail(self, queues: dict[str, Queue], queue_id: str, job_id: str) -> dict:
+    async def job_detail(self, task_queues: dict[str, Queue], queue_id: str, job_id: str) -> dict:
         """Get job information."""
-        queue = queues.get(queue_id)
+        queue = task_queues.get(queue_id)
         if not queue:
             msg = f"Could not find the {queue_id} queue"
             raise NotFoundException(msg)
@@ -78,9 +78,9 @@ class SAQController(Controller):
         summary="Job Retry",
         description="Retry a failed job..",
     )
-    async def job_retry(self, queues: dict[str, Queue], queue_id: str, job_id: str) -> dict:
+    async def job_retry(self, task_queues: dict[str, Queue], queue_id: str, job_id: str) -> dict:
         """Retry job."""
-        queue = queues.get(queue_id)
+        queue = task_queues.get(queue_id)
         if not queue:
             msg = f"Could not find the {queue_id} queue"
             raise NotFoundException(msg)
@@ -97,9 +97,9 @@ class SAQController(Controller):
         summary="Job Abort",
         description="Abort active job.",
     )
-    async def job_abort(self, queues: dict[str, Queue], queue_id: str, job_id: str) -> dict:
+    async def job_abort(self, task_queues: dict[str, Queue], queue_id: str, job_id: str) -> dict:
         """Abort job."""
-        queue = queues.get(queue_id)
+        queue = task_queues.get(queue_id)
         if not queue:
             msg = f"Could not find the {queue_id} queue"
             raise NotFoundException(msg)
@@ -127,14 +127,14 @@ SITE_BODY = """
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" type="text/css" href="/static/pico.min.css">
+        <link rel="stylesheet" type="text/css" href="/saq/static/pico.min.css.gz">
         <title>SAQ</title>
-        <base href="/worker/" />
     </head>
     <body>
         <div id="app"></div>
-        <script src="/static/snabbdom.js"></script>
-        <script src="/static/app.js"></script>
+        <script>const root_path = "/saq";</script>
+        <script src="/saq/static/snabbdom.js.gz"></script>
+        <script src="/saq/static/app.js"></script>
     </body>
 </html>
 """.strip()
