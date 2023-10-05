@@ -20,13 +20,13 @@ if TYPE_CHECKING:
     from litestar_saq.base import Worker
 
 
-@group(cls=LitestarGroup, name="tasks")
+@group(cls=LitestarGroup, name="worker")
 def background_worker_group() -> None:
     """Manage background task workers."""
 
 
 @background_worker_group.command(
-    name="run-worker",
+    name="run",
     help="Run background worker processes.",
 )
 @option(
