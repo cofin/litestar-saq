@@ -44,7 +44,7 @@ class SAQConfig:
     queue_configs: list[QueueConfig] = field(default_factory=lambda: [QueueConfig()])
     """Configuration for Queues"""
     redis: Redis | None = None
-    """Redis URL to connect with."""
+    """Pre-configured Redis instance to use."""
     redis_url: str | None = None
     """Redis URL to connect with."""
     namespace: str = "saq"
@@ -68,7 +68,9 @@ class SAQConfig:
     """This is a Python callable that will render a given object as JSON.
     By default, Litestar's :attr:`encode_json() <.serialization.encode_json>` is used."""
     static_files: Path = field(default_factory=_get_static_files)
+    """Location of the static files to serve for the SAQ UI"""
     web_path = "/saq"
+    """Base path to serve the SAQ web UI"""
 
     def __post_init__(self) -> None:
         if self.redis is not None and self.redis_url is not None:
@@ -163,16 +165,32 @@ class QueueConfig:
     """SAQ Queue Configuration"""
 
     redis: Redis | None = None
+    """Pre-configured Redis instance to use."""
     name: str = "default"
+    """The name of the queue to create."""
     concurrency: int = 10
+    """Number of jobs to process concurrently"""
     max_concurrent_ops: int = 20
+    """Maximum concurrent operations. (default 20)
+            This throttles calls to `enqueue`, `job`, and `abort` to prevent the Queue
+            from consuming too many Redis connections."""
     tasks: list[ReceivesContext] = field(default_factory=list)
     """Allowed list of functions to execute in this queue"""
     scheduled_tasks: list[CronJob] = field(default_factory=list)
     """Scheduled cron jobs to execute in this queue."""
     startup: ReceivesContext | None = None
+    """Async callable to call on startup"""
     shutdown: ReceivesContext | None = None
+    """Async callable to call on shutdown"""
     before_process: ReceivesContext | None = None
+    """Async callable to call before a job processes"""
     after_process: ReceivesContext | None = None
+    """Async callable to call after a job processes"""
     timers: PartialTimersDict | None = None
+    """Dict with various timer overrides in seconds
+            schedule: how often we poll to schedule jobs
+            stats: how often to update stats
+            sweep: how often to clean up stuck jobs
+            abort: how often to check if a job is aborted"""
     dequeue_timeout: float = 0
+    """How long it will wait to dequeue"""

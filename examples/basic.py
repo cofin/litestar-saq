@@ -30,7 +30,7 @@ saq = SAQPlugin(
             QueueConfig(
                 name="samples",
                 tasks=[tasks.background_worker_task, tasks.system_task, tasks.system_upkeep],
-                scheduled_tasks=[CronJob(function=tasks.system_upkeep, cron="* * * * *")],
+                scheduled_tasks=[CronJob(function=tasks.system_upkeep, cron="* * * * *", timeout=600, ttl=2000)],
             ),
         ],
     ),

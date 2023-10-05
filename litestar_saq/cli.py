@@ -3,16 +3,19 @@ from __future__ import annotations
 import asyncio
 import multiprocessing
 from contextlib import suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from click import IntRange, group, option
-from litestar.cli._utils import LitestarGroup, console
+from litestar.cli._utils import LitestarGroup, _format_is_enabled, console
+from rich.table import Table
+from saq import __version__ as saq_version
 
 from litestar_saq.exceptions import ImproperConfigurationError
 from litestar_saq.plugin import SAQPlugin
 
 if TYPE_CHECKING:
     from litestar import Litestar
+    from litestar.logging.config import BaseLoggingConfig
 
     from litestar_saq.base import Worker
 
@@ -39,20 +42,31 @@ def background_worker_group() -> None:
 def run_worker(
     app: Litestar,
     workers: int,
-    verbose: bool | None,  # noqa: ARG001
-    debug: bool | None,  # noqa: ARG001
+    verbose: bool | None,
+    debug: bool | None,
 ) -> None:
     """Run the API server."""
     console.rule("[yellow]Starting SAQ Workers[/]", align="left")
-
+    if app.logging_config is not None:
+        app.logging_config.configure()
+    if debug is not None:
+        app.debug = True
+    if verbose is not None:
+        """todo: set the logging level here"""
+        _log_level = "debug"
     plugin = get_saq_plugin(app)
+    show_saq_info(app, workers, plugin)
     if workers > 1:
         for _ in range(workers - 1):
-            p = multiprocessing.Process(target=run_worker_process, args=(plugin.get_workers(),))
+            p = multiprocessing.Process(target=run_worker_process, args=(plugin.get_workers(), app.logging_config))
             p.start()
 
-    with suppress(KeyboardInterrupt):
-        run_worker_process(workers=plugin.get_workers())
+    try:
+        run_worker_process(workers=plugin.get_workers(), logging_config=cast("BaseLoggingConfig", app.logging_config))
+    except KeyboardInterrupt:
+        loop = asyncio.get_event_loop()
+        for worker_instance in plugin.get_workers():
+            loop.run_until_complete(worker_instance.stop())
 
 
 def get_saq_plugin(app: Litestar) -> SAQPlugin:
@@ -70,10 +84,26 @@ def get_saq_plugin(app: Litestar) -> SAQPlugin:
     )
 
 
-def run_worker_process(workers: list[Worker]) -> None:
+def show_saq_info(app: Litestar, workers: int, plugin: SAQPlugin) -> None:  # pragma: no cover
+    """Display basic information about the application and its configuration."""
+
+    table = Table(show_header=False)
+    table.add_column("title", style="cyan")
+    table.add_column("value", style="bright_blue")
+
+    table.add_row("SAQ version", saq_version)
+    table.add_row("Debug mode", _format_is_enabled(app.debug))
+    table.add_row("Number of Processes", str(workers))
+    table.add_row("Queues", str(len(plugin._config.queue_configs)))  # noqa: SLF001
+
+    console.print(table)
+
+
+def run_worker_process(workers: list[Worker], logging_config: BaseLoggingConfig | None) -> None:
     """Run a worker."""
     loop = asyncio.get_event_loop()
-
+    if logging_config is not None:
+        logging_config.configure()
     try:
         for i, worker_instance in enumerate(workers):
             if i < len(workers) - 1:
