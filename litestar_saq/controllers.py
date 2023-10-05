@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from litestar import Controller, MediaType, get, post
 from litestar.exceptions import NotFoundException
+from litestar.status_codes import HTTP_202_ACCEPTED
 
 from litestar_saq import info, urls
 
@@ -77,6 +78,7 @@ class SAQController(Controller):
         cache=False,
         summary="Job Retry",
         description="Retry a failed job..",
+        status_code=HTTP_202_ACCEPTED,
     )
     async def job_retry(self, task_queues: dict[str, Queue], queue_id: str, job_id: str) -> dict:
         """Retry job."""
@@ -96,6 +98,7 @@ class SAQController(Controller):
         cache=False,
         summary="Job Abort",
         description="Abort active job.",
+        status_code=HTTP_202_ACCEPTED,
     )
     async def job_abort(self, task_queues: dict[str, Queue], queue_id: str, job_id: str) -> dict:
         """Abort job."""
