@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import asyncio
 from logging import getLogger
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from saq.types import Context
 
 logger = getLogger(__name__)
 
 
-async def system_upkeep(_: dict) -> None:
+async def system_upkeep(_: Context) -> None:
     logger.info("Performing system upkeep operations.")
     logger.info("Simulating a long running operation.  Sleeping for 60 seconds.")
     await asyncio.sleep(60)
@@ -14,13 +20,13 @@ async def system_upkeep(_: dict) -> None:
     logger.info("Performing system upkeep operations.")
 
 
-async def background_worker_task(_: dict) -> None:
+async def background_worker_task(_: Context) -> None:
     logger.info("Performing background worker task.")
     await asyncio.sleep(20)
     logger.info("Performing system upkeep operations.")
 
 
-async def system_task(_: dict) -> None:
+async def system_task(_: Context) -> None:
     logger.info("Performing simple system task")
     await asyncio.sleep(2)
     logger.info("System task complete.")

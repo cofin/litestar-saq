@@ -4,7 +4,9 @@ from typing import TYPE_CHECKING
 
 from litestar import Controller, Litestar, get
 
+from examples import tasks
 from litestar_saq import QueueConfig, SAQConfig, SAQPlugin
+from litestar_saq.base import CronJob
 
 if TYPE_CHECKING:
     from saq.types import QueueInfo
@@ -20,5 +22,17 @@ class SampleController(Controller):
         return await queue.info()  # type: ignore[union-attr]
 
 
-saq = SAQPlugin(config=SAQConfig(redis_url="redis://localhost:6397/0", queue_configs=[QueueConfig(name="samples")]))
+saq = SAQPlugin(
+    config=SAQConfig(
+        redis_url="redis://localhost:6397/0",
+        web_enabled=True,
+        queue_configs=[
+            QueueConfig(
+                name="samples",
+                tasks=[tasks.background_worker_task, tasks.system_task, tasks.system_upkeep],
+                scheduled_tasks=[CronJob(function=tasks.system_upkeep, cron="* * * * *")],
+            ),
+        ],
+    ),
+)
 app = Litestar(plugins=[saq], route_handlers=[SampleController])
