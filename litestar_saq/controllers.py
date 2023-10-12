@@ -128,8 +128,8 @@ def build_controller(url_base: str = "/saq") -> type[Controller]:  # noqa: C901
         @get(
             [
                 url_base,
-                f"{url_base}/api/queues/{{queue_id:str}}",
-                f"{url_base}/api/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
+                f"{url_base}/queues/{{queue_id:str}}",
+                f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
             ],
             operation_id="WorkerIndex",
             name="worker:index",
