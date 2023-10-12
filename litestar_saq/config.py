@@ -9,14 +9,15 @@ from litestar.serialization import decode_json, encode_json
 from redis.asyncio import ConnectionPool, Redis
 from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
+from litestar_saq._util import import_string, module_to_os_path
 from litestar_saq.base import CronJob, Job, Queue, Worker
-from litestar_saq.util import module_to_os_path
 
 if TYPE_CHECKING:
     from typing import Any
 
     from litestar import Litestar
     from litestar.datastructures.state import State
+    from saq.queue import Queue as SaqQueue
 
 T = TypeVar("T")
 
@@ -49,7 +50,7 @@ class SAQConfig:
     """Redis URL to connect with."""
     namespace: str = "saq"
     """Namespace to use for Redis"""
-    queue_instances: dict[str, Queue] | None = None
+    queue_instances: dict[str, Queue | SaqQueue] | None = None
     """Current configured queue instances.  When None, queues will be auto-created on startup"""
     queues_dependency_key: str = field(default="task_queues")
     """Key to use for storing dependency information in litestar."""
@@ -125,7 +126,7 @@ class SAQConfig:
         self.redis = Redis(connection_pool=pool)
         return self.redis
 
-    def get_queues(self) -> dict[str, Queue]:
+    def get_queues(self) -> dict[str, Queue | SaqQueue]:
         """Get the configured SAQ queues.
 
         Returns:
@@ -170,7 +171,7 @@ class QueueConfig:
     """The name of the queue to create."""
     concurrency: int = 10
     """Number of jobs to process concurrently"""
-    max_concurrent_ops: int = 20
+    max_concurrent_ops: int = 15
     """Maximum concurrent operations. (default 20)
             This throttles calls to `enqueue`, `job`, and `abort` to prevent the Queue
             from consuming too many Redis connections."""
@@ -194,3 +195,15 @@ class QueueConfig:
             abort: how often to check if a job is aborted"""
     dequeue_timeout: float = 0
     """How long it will wait to dequeue"""
+    separate_process: bool = True
+    """Executes as a separate event loop when True.
+            Set it False to execute within the Litestar application."""
+
+    def __post_init__(self) -> None:
+        self.tasks = [self._get_or_import_task(task) for task in self.tasks]
+
+    @staticmethod
+    def _get_or_import_task(task_or_import_string: str | ReceivesContext) -> ReceivesContext:
+        if isinstance(task_or_import_string, str):
+            return cast("ReceivesContext", import_string(task_or_import_string))
+        return task_or_import_string

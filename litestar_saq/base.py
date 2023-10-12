@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, cast
 
 from saq import Job as SaqJob
 from saq import Worker as SaqWorker
 from saq.job import CronJob as SaqCronJob
 from saq.queue import Queue as SaqQueue
+
+from litestar_saq._util import import_string
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -21,16 +23,21 @@ if TYPE_CHECKING:
 class Job(SaqJob):
     """Job Details"""
 
-    job_name: str | None = None
-    job_description: str | None = None
-
 
 @dataclass
 class CronJob(SaqCronJob):
     """Cron Job Details"""
 
-    job_name: str | None = None
-    job_description: str | None = None
+    meta: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.function = self._get_or_import_function(self.function)
+
+    @staticmethod
+    def _get_or_import_function(function_or_import_string: str | Function) -> Function:
+        if isinstance(function_or_import_string, str):
+            return cast("Function", import_string(function_or_import_string))
+        return function_or_import_string
 
 
 class Queue(SaqQueue):
@@ -57,11 +64,6 @@ class Queue(SaqQueue):
     ) -> None:
         self._namespace = queue_namespace if queue_namespace is not None else "saq"
         super().__init__(redis, name, dump, load, max_concurrent_ops)
-
-    def temp(self, *args: Any, **kwargs: Any) -> None:
-        """Initialize a new queue."""
-        self._namespace = kwargs.pop("queue_namespace", "saq")
-        super().__init__(*args, **kwargs)
 
     def namespace(self, key: str) -> str:
         """Make the namespace unique per app."""
