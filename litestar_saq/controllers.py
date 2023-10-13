@@ -7,14 +7,13 @@ from litestar.exceptions import NotFoundException
 
 if TYPE_CHECKING:
     from litestar import Controller
-    from saq.job import Job as SaqJob
     from saq.types import QueueInfo
 
     from litestar_saq.base import Job
     from litestar_saq.config import TaskQueue, TaskQueues
 
 
-async def job_info(queue: TaskQueue, job_id: str) -> Job | SaqJob:
+async def job_info(queue: TaskQueue, job_id: str) -> Job:
     job = await queue._get_job_by_id(job_id)  # noqa: SLF001
     if not job:
         msg = f"Could not find job ID {job_id}"

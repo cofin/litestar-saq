@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Collection, TypeVar, cast
 
 from litestar.di import Provide
-from litestar.exceptions import ImproperlyConfiguredException
 from litestar.plugins import CLIPluginProtocol, InitPluginProtocol
 from litestar.static_files import StaticFilesConfig
 
@@ -13,9 +12,10 @@ from litestar_saq.controllers import build_controller
 if TYPE_CHECKING:
     from click import Group
     from litestar.config.app import AppConfig
+    from saq.types import Function
 
-    from litestar_saq.config import SAQConfig, TaskQueue, TaskQueues
-
+    from litestar_saq.base import Queue
+    from litestar_saq.config import SAQConfig, TaskQueues
 
 T = TypeVar("T")
 
@@ -68,18 +68,18 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
         app_config.on_startup.append(self._config.update_app_state)
         app_config.on_shutdown.append(self._config.on_shutdown)
         app_config.signature_namespace.update(self._config.signature_namespace)
+
         return app_config
 
     def get_workers(self) -> list[Worker]:
         """Return workers"""
         if self._worker_instances is not None:
             return self._worker_instances
-        queues = self._config.get_queues()
         self._worker_instances = []
         self._worker_instances.extend(
             Worker(
-                queue=self._get_queue(queue_config.name, queues.queues),
-                functions=queue_config.tasks,
+                queue=self.get_queue(queue_config.name),
+                functions=cast("Collection[Function]", queue_config.tasks),
                 cron_jobs=queue_config.scheduled_tasks,
                 concurrency=queue_config.concurrency,
                 startup=queue_config.startup,
@@ -96,10 +96,5 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
     def get_queues(self) -> TaskQueues:
         return self._config.get_queues()
 
-    @staticmethod
-    def _get_queue(name: str, queues: dict[str, TaskQueue]) -> TaskQueue:
-        queue = queues.get(name)
-        if queue is not None:
-            return queue
-        msg = "Could not find the specified queue.  Please check your configuration."
-        raise ImproperlyConfiguredException(msg)
+    def get_queue(self, name: str) -> Queue:
+        return self.get_queues().get(name)

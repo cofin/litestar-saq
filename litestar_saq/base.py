@@ -90,7 +90,7 @@ class Worker(SaqWorker):
 
     def __init__(
         self,
-        queue: Queue | SaqQueue,
+        queue: Queue,
         functions: Collection[Function | tuple[str, Function]],
         *,
         concurrency: int = 10,
@@ -103,7 +103,7 @@ class Worker(SaqWorker):
         dequeue_timeout: float = 0,
     ) -> None:
         super().__init__(
-            queue,
+            cast("SaqQueue", queue),
             functions,
             concurrency=concurrency,
             cron_jobs=cron_jobs,
