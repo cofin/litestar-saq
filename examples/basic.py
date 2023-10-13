@@ -11,15 +11,15 @@ from litestar_saq.base import CronJob
 if TYPE_CHECKING:
     from saq.types import QueueInfo
 
-    from litestar_saq.base import Queue
+    from litestar_saq.config import TaskQueues
 
 
 class SampleController(Controller):
     @get(path="/samples")
-    async def samples_queue_info(self, task_queues: dict[str, Queue]) -> QueueInfo:
+    async def samples_queue_info(self, task_queues: TaskQueues) -> QueueInfo:
         """Check database available and returns app config info."""
         queue = task_queues.get("samples")
-        return await queue.info()  # type: ignore[union-attr]
+        return await queue.info()
 
 
 saq = SAQPlugin(
