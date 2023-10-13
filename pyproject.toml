@@ -30,7 +30,7 @@ license = {text = "MIT"}
 name = "litestar-saq"
 readme = "README.md"
 requires-python = ">=3.8"
-version = "0.1.4"
+version = "0.1.5"
 
 [project.urls]
 Changelog = "https://cofin.github.io/litesatr-saq/latest/changelog"
