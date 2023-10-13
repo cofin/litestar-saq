@@ -43,11 +43,10 @@ TaskQueue = SaqQueue | Queue
 
 @dataclass
 class TaskQueues:
-    __slots__ = ("_queues",)
-    _queues: dict[str, TaskQueue] = field(default_factory=dict)
+    queues: dict[str, TaskQueue] = field(default_factory=dict)
 
     def get(self, name: str) -> TaskQueue:
-        queue = self._queues.get(name)
+        queue = self.queues.get(name)
         if queue is not None:
             return queue
         msg = "Could not find the specified queue.  Please check your configuration."
@@ -156,7 +155,7 @@ class SAQConfig:
             Dictionary of queues.
         """
         if self.queue_instances is not None:
-            return TaskQueues(_queues=self.queue_instances)
+            return TaskQueues(queues=self.queue_instances)
         self.queue_instances = {}
         for queue_config in self.queue_configs:
             self.queue_instances[queue_config.name] = Queue(
@@ -167,7 +166,7 @@ class SAQConfig:
                 load=self.json_deserializer,
                 max_concurrent_ops=queue_config.max_concurrent_ops,
             )
-        return TaskQueues(_queues=self.queue_instances)
+        return TaskQueues(queues=self.queue_instances)
 
     def create_app_state_items(self) -> dict[str, Any]:
         """Key/value pairs to be stored in application state."""

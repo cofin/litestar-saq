@@ -78,7 +78,7 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
         self._worker_instances = []
         self._worker_instances.extend(
             Worker(
-                queue=self._get_queue(queue_config.name, queues._queues),  # noqa: SLF001
+                queue=self._get_queue(queue_config.name, queues.queues),
                 functions=queue_config.tasks,
                 cron_jobs=queue_config.scheduled_tasks,
                 concurrency=queue_config.concurrency,
