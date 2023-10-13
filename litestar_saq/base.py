@@ -28,6 +28,7 @@ class Job(SaqJob):
 class CronJob(SaqCronJob):
     """Cron Job Details"""
 
+    function: Function | str  # type: ignore[assignment]
     meta: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
