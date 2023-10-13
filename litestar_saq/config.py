@@ -197,7 +197,7 @@ class QueueConfig:
     """Maximum concurrent operations. (default 20)
             This throttles calls to `enqueue`, `job`, and `abort` to prevent the Queue
             from consuming too many Redis connections."""
-    tasks: list[ReceivesContext] = field(default_factory=list)
+    tasks: list[ReceivesContext | str] = field(default_factory=list)
     """Allowed list of functions to execute in this queue"""
     scheduled_tasks: list[CronJob] = field(default_factory=list)
     """Scheduled cron jobs to execute in this queue."""
