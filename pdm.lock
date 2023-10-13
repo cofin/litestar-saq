@@ -937,7 +937,7 @@ files = [
 
 [[package]]
 name = "litestar"
-version = "2.2.0"
+version = "2.2.1"
 requires_python = "<4.0,>=3.8"
 summary = "Litestar - A production-ready, highly performant, extensible ASGI API Framework"
 dependencies = [
@@ -955,25 +955,25 @@ dependencies = [
     "typing-extensions",
 ]
 files = [
-    {file = "litestar-2.2.0-py3-none-any.whl", hash = "sha256:d4608967e39f64e9bfea69168268b79bc796f36d7ef92c6d51abdfa89e1c56be"},
-    {file = "litestar-2.2.0.tar.gz", hash = "sha256:d8c62d06c70377e2bb6c4116d608da91f0c5423f819add433bf2a7ec3f7f8bda"},
+    {file = "litestar-2.2.1-py3-none-any.whl", hash = "sha256:f8b6100bb6a0f4204d9b9a187a0dc5ea1a88dac29f6d0d83136497979f8a7e74"},
+    {file = "litestar-2.2.1.tar.gz", hash = "sha256:cf93b913d620866c5de6b85ef4480a85816c83f9efacb49d2a06fb4f7d802d5a"},
 ]
 
 [[package]]
 name = "litestar"
-version = "2.2.0"
+version = "2.2.1"
 extras = ["cli", "redis"]
 requires_python = "<4.0,>=3.8"
 summary = "Litestar - A production-ready, highly performant, extensible ASGI API Framework"
 dependencies = [
     "jsbeautifier",
-    "litestar==2.2.0",
+    "litestar==2.2.1",
     "redis[hiredis]>=4.4.4",
     "uvicorn[standard]",
 ]
 files = [
-    {file = "litestar-2.2.0-py3-none-any.whl", hash = "sha256:d4608967e39f64e9bfea69168268b79bc796f36d7ef92c6d51abdfa89e1c56be"},
-    {file = "litestar-2.2.0.tar.gz", hash = "sha256:d8c62d06c70377e2bb6c4116d608da91f0c5423f819add433bf2a7ec3f7f8bda"},
+    {file = "litestar-2.2.1-py3-none-any.whl", hash = "sha256:f8b6100bb6a0f4204d9b9a187a0dc5ea1a88dac29f6d0d83136497979f8a7e74"},
+    {file = "litestar-2.2.1.tar.gz", hash = "sha256:cf93b913d620866c5de6b85ef4480a85816c83f9efacb49d2a06fb4f7d802d5a"},
 ]
 
 [[package]]
