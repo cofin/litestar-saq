@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING, TypeVar, cast
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
 from redis.asyncio import ConnectionPool, Redis
+from saq.queue import Queue as SaqQueue
 from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
+from litestar_saq._util import import_string, module_to_os_path
 from litestar_saq.base import CronJob, Job, Queue, Worker
-from litestar_saq.util import module_to_os_path
 
 if TYPE_CHECKING:
     from typing import Any
@@ -37,6 +38,22 @@ def _get_static_files() -> Path:
     return Path(module_to_os_path("saq.web") / "static")
 
 
+TaskQueue = SaqQueue | Queue
+
+
+@dataclass
+class TaskQueues:
+    __slots__ = ("_queues",)
+    _queues: dict[str, TaskQueue] = field(default_factory=dict)
+
+    def get(self, name: str) -> TaskQueue:
+        queue = self._queues.get(name)
+        if queue is not None:
+            return queue
+        msg = "Could not find the specified queue.  Please check your configuration."
+        raise ImproperlyConfiguredException(msg)
+
+
 @dataclass
 class SAQConfig:
     """SAQ Configuration."""
@@ -49,7 +66,7 @@ class SAQConfig:
     """Redis URL to connect with."""
     namespace: str = "saq"
     """Namespace to use for Redis"""
-    queue_instances: dict[str, Queue] | None = None
+    queue_instances: dict[str, Queue | SaqQueue] | None = None
     """Current configured queue instances.  When None, queues will be auto-created on startup"""
     queues_dependency_key: str = field(default="task_queues")
     """Key to use for storing dependency information in litestar."""
@@ -84,7 +101,14 @@ class SAQConfig:
         Returns:
             A string keyed dict of names to be added to the namespace for signature forward reference resolution.
         """
-        return {"Queue": Queue, "Worker": Worker, "QueueInfo": QueueInfo, "Job": Job, "QueueStats": QueueStats}
+        return {
+            "Queue": Queue,
+            "Worker": Worker,
+            "QueueInfo": QueueInfo,
+            "Job": Job,
+            "QueueStats": QueueStats,
+            "TaskQueues": TaskQueues,
+        }
 
     async def on_shutdown(self, app: Litestar) -> None:
         """Disposes of the SAQ Workers.
@@ -125,14 +149,14 @@ class SAQConfig:
         self.redis = Redis(connection_pool=pool)
         return self.redis
 
-    def get_queues(self) -> dict[str, Queue]:
+    def get_queues(self) -> TaskQueues:
         """Get the configured SAQ queues.
 
         Returns:
             Dictionary of queues.
         """
         if self.queue_instances is not None:
-            return self.queue_instances
+            return TaskQueues(_queues=self.queue_instances)
         self.queue_instances = {}
         for queue_config in self.queue_configs:
             self.queue_instances[queue_config.name] = Queue(
@@ -143,7 +167,7 @@ class SAQConfig:
                 load=self.json_deserializer,
                 max_concurrent_ops=queue_config.max_concurrent_ops,
             )
-        return self.queue_instances
+        return TaskQueues(_queues=self.queue_instances)
 
     def create_app_state_items(self) -> dict[str, Any]:
         """Key/value pairs to be stored in application state."""
@@ -170,7 +194,7 @@ class QueueConfig:
     """The name of the queue to create."""
     concurrency: int = 10
     """Number of jobs to process concurrently"""
-    max_concurrent_ops: int = 20
+    max_concurrent_ops: int = 15
     """Maximum concurrent operations. (default 20)
             This throttles calls to `enqueue`, `job`, and `abort` to prevent the Queue
             from consuming too many Redis connections."""
@@ -194,3 +218,15 @@ class QueueConfig:
             abort: how often to check if a job is aborted"""
     dequeue_timeout: float = 0
     """How long it will wait to dequeue"""
+    separate_process: bool = True
+    """Executes as a separate event loop when True.
+            Set it False to execute within the Litestar application."""
+
+    def __post_init__(self) -> None:
+        self.tasks = [self._get_or_import_task(task) for task in self.tasks]
+
+    @staticmethod
+    def _get_or_import_task(task_or_import_string: str | ReceivesContext) -> ReceivesContext:
+        if isinstance(task_or_import_string, str):
+            return cast("ReceivesContext", import_string(task_or_import_string))
+        return task_or_import_string
