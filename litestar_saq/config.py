@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, TypeVar, cast
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
 from redis.asyncio import ConnectionPool, Redis
+from saq.queue import Queue as SaqQueue
 from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
 from litestar_saq._util import import_string, module_to_os_path
@@ -17,7 +18,6 @@ if TYPE_CHECKING:
 
     from litestar import Litestar
     from litestar.datastructures.state import State
-    from saq.queue import Queue as SaqQueue
 
 T = TypeVar("T")
 
@@ -36,6 +36,22 @@ def serializer(value: Any) -> str:
 
 def _get_static_files() -> Path:
     return Path(module_to_os_path("saq.web") / "static")
+
+
+TaskQueue = SaqQueue | Queue
+
+
+@dataclass
+class TaskQueues:
+    __slots__ = ("_queues",)
+    _queues: dict[str, TaskQueue] = field(default_factory=dict)
+
+    def get(self, name: str) -> TaskQueue:
+        queue = self._queues.get(name)
+        if queue is not None:
+            return queue
+        msg = "Could not find the specified queue.  Please check your configuration."
+        raise ImproperlyConfiguredException(msg)
 
 
 @dataclass
@@ -85,7 +101,14 @@ class SAQConfig:
         Returns:
             A string keyed dict of names to be added to the namespace for signature forward reference resolution.
         """
-        return {"Queue": Queue, "Worker": Worker, "QueueInfo": QueueInfo, "Job": Job, "QueueStats": QueueStats}
+        return {
+            "Queue": Queue,
+            "Worker": Worker,
+            "QueueInfo": QueueInfo,
+            "Job": Job,
+            "QueueStats": QueueStats,
+            "TaskQueues": TaskQueues,
+        }
 
     async def on_shutdown(self, app: Litestar) -> None:
         """Disposes of the SAQ Workers.
@@ -126,14 +149,14 @@ class SAQConfig:
         self.redis = Redis(connection_pool=pool)
         return self.redis
 
-    def get_queues(self) -> dict[str, Queue | SaqQueue]:
+    def get_queues(self) -> TaskQueues:
         """Get the configured SAQ queues.
 
         Returns:
             Dictionary of queues.
         """
         if self.queue_instances is not None:
-            return self.queue_instances
+            return TaskQueues(_queues=self.queue_instances)
         self.queue_instances = {}
         for queue_config in self.queue_configs:
             self.queue_instances[queue_config.name] = Queue(
@@ -144,7 +167,7 @@ class SAQConfig:
                 load=self.json_deserializer,
                 max_concurrent_ops=queue_config.max_concurrent_ops,
             )
-        return self.queue_instances
+        return TaskQueues(_queues=self.queue_instances)
 
     def create_app_state_items(self) -> dict[str, Any]:
         """Key/value pairs to be stored in application state."""

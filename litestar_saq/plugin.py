@@ -7,15 +7,14 @@ from litestar.exceptions import ImproperlyConfiguredException
 from litestar.plugins import CLIPluginProtocol, InitPluginProtocol
 from litestar.static_files import StaticFilesConfig
 
-from litestar_saq.base import Queue, Worker
+from litestar_saq.base import Worker
 from litestar_saq.controllers import build_controller
 
 if TYPE_CHECKING:
     from click import Group
     from litestar.config.app import AppConfig
-    from saq.queue import Queue as SaqQueue
 
-    from litestar_saq.config import SAQConfig
+    from litestar_saq.config import SAQConfig, TaskQueue, TaskQueues
 
 
 T = TypeVar("T")
@@ -79,7 +78,7 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
         self._worker_instances = []
         self._worker_instances.extend(
             Worker(
-                queue=self._get_queue(queue_config.name, queues),
+                queue=self._get_queue(queue_config.name, queues._queues),  # noqa: SLF001
                 functions=queue_config.tasks,
                 cron_jobs=queue_config.scheduled_tasks,
                 concurrency=queue_config.concurrency,
@@ -94,11 +93,11 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
         )
         return self._worker_instances
 
-    def get_queues(self) -> dict[str, Queue | SaqQueue]:
+    def get_queues(self) -> TaskQueues:
         return self._config.get_queues()
 
     @staticmethod
-    def _get_queue(name: str, queues: dict[str, Queue | SaqQueue]) -> Queue | SaqQueue:
+    def _get_queue(name: str, queues: dict[str, TaskQueue]) -> TaskQueue:
         queue = queues.get(name)
         if queue is not None:
             return queue

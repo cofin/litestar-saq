@@ -47,11 +47,8 @@ def build_cli_app() -> Group:
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
         if app.logging_config is not None:
             app.logging_config.configure()
-        if debug is not None:
+        if debug is not None or verbose is not None:
             app.debug = True
-        if verbose is not None:
-            """todo: set the logging level here"""
-            _log_level = "debug"
         plugin = get_saq_plugin(app)
         show_saq_info(app, workers, plugin)
         if workers > 1:
