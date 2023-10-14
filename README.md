@@ -29,7 +29,7 @@ app = Litestar(plugins=[saq])
 You can start a background worker with the following command now:
 
 ```shell
-litestar --app-dir=examples/ --app basic:app tasks run-worker
+litestar --app-dir=examples/ --app basic:app workers run
 Using Litestar app from env: 'basic:app'
 Starting SAQ Workers ──────────────────────────────────────────────────────────────────
 INFO - 2023-10-04 17:39:03,255 - saq - worker - Worker starting: Queue<redis=Redis<ConnectionPool<Connection<host=localhost,port=6397,db=0>>>, name='samples'>
