@@ -19,7 +19,7 @@ def build_cli_app() -> Group:
     from click import IntRange, group, option
     from litestar.cli._utils import LitestarGroup, console
 
-    @group(cls=LitestarGroup, name="workers")
+    @group(cls=LitestarGroup, name="workers", no_args_is_help=True)
     def background_worker_group() -> None:
         """Manage background task workers."""
 
@@ -65,6 +65,26 @@ def build_cli_app() -> Group:
             loop = asyncio.get_event_loop()
             for worker_instance in plugin.get_workers():
                 loop.run_until_complete(worker_instance.stop())
+
+    @background_worker_group.command(
+        name="status",
+        help="Check the status of currently configured workers and queues.",
+    )
+    @option("-v", "--verbose", help="Enable verbose logging.", is_flag=True, default=None, type=bool, required=False)
+    @option("-d", "--debug", help="Enable debugging.", is_flag=True, default=None, type=bool, required=False)
+    def worker_status(
+        app: Litestar,
+        verbose: bool | None,
+        debug: bool | None,
+    ) -> None:
+        """Run the API server."""
+        console.rule("[yellow]Checking SAQ worker status[/]", align="left")
+        if app.logging_config is not None:
+            app.logging_config.configure()
+        if debug is not None or verbose is not None:
+            app.debug = True
+        plugin = get_saq_plugin(app)
+        show_saq_info(app, 1, plugin)
 
     return background_worker_group
 
