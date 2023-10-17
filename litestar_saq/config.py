@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Collection, Mapping, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, Collection, Dict, Mapping, TypeVar, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
 from redis.asyncio import ConnectionPool, Redis
 from saq.queue import Queue as SaqQueue
-from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
+from saq.types import DumpType as SaqDumpType
+from saq.types import LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
 from litestar_saq._util import import_string, module_to_os_path
 from litestar_saq.base import CronJob, Job, Queue, Worker
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 TaskQueue = Queue | SaqQueue
+DumpType = SaqDumpType | Callable[[Dict], bytes]
 
 
 def serializer(value: Any) -> str:
@@ -112,16 +114,6 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    async def on_shutdown(self, app: Litestar) -> None:
-        """Disposes of the SAQ Workers.
-
-        Args:
-            app: The ``Litestar`` instance.
-
-        Returns:
-            None
-        """
-
     def provide_queues(self, state: State) -> TaskQueues:
         """Provide the configured job queues.
 
@@ -161,7 +153,7 @@ class SAQConfig:
                 queue_namespace=self.namespace,
                 redis=self.get_redis(),
                 name=queue_config.name,
-                dump=self.json_serializer,
+                dump=cast("SaqDumpType", self.json_serializer),
                 load=self.json_deserializer,
                 max_concurrent_ops=queue_config.max_concurrent_ops,
             )

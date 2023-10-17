@@ -137,10 +137,11 @@ def run_worker_process(workers: list[Worker], logging_config: BaseLoggingConfig 
         logging_config.configure()
     try:
         for i, worker_instance in enumerate(workers):
-            if i < len(workers) - 1:
-                loop.create_task(worker_instance.start())
-            else:
-                loop.run_until_complete(worker_instance.start())
+            if worker_instance.separate_process:
+                if i < len(workers) - 1:
+                    loop.create_task(worker_instance.start())
+                else:
+                    loop.run_until_complete(worker_instance.start())
     except KeyboardInterrupt:
         for worker in workers:
             loop.run_until_complete(worker.stop())
