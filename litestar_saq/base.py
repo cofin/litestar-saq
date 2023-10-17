@@ -13,10 +13,12 @@ from litestar_saq._util import import_string
 
 if TYPE_CHECKING:
     from collections.abc import Collection
-    from signal import Signals
 
     from redis.asyncio.client import Redis
-    from saq.types import DumpType, Function, LoadType, PartialTimersDict, ReceivesContext
+    from saq.types import DumpType as SaqDumpType
+    from saq.types import Function, LoadType, PartialTimersDict, ReceivesContext
+
+    from litestar_saq.config import DumpType
 
 
 @dataclass
@@ -64,7 +66,7 @@ class Queue(SaqQueue):
         queue_namespace: str | None = None,
     ) -> None:
         self._namespace = queue_namespace if queue_namespace is not None else "saq"
-        super().__init__(redis, name, dump, load, max_concurrent_ops)
+        super().__init__(redis, name, cast("SaqDumpType", dump), load, max_concurrent_ops)
 
     def namespace(self, key: str) -> str:
         """Make the namespace unique per app."""
@@ -85,8 +87,10 @@ class Queue(SaqQueue):
 class Worker(SaqWorker):
     """Worker."""
 
+    """
     # same issue: https://github.com/samuelcolvin/arq/issues/182
     SIGNALS: list[Signals] = []
+    """
 
     def __init__(
         self,
@@ -101,7 +105,9 @@ class Worker(SaqWorker):
         after_process: ReceivesContext | None = None,
         timers: PartialTimersDict | None = None,
         dequeue_timeout: float = 0,
+        separate_process: bool = True,
     ) -> None:
+        self.separate_process = separate_process
         super().__init__(
             cast("SaqQueue", queue),
             functions,
@@ -117,5 +123,13 @@ class Worker(SaqWorker):
 
     async def on_app_startup(self) -> None:
         """Attach the worker to the running event loop."""
-        loop = asyncio.get_running_loop()
-        _ = loop.create_task(self.start())
+        if not self.separate_process:
+            self.SIGNALS = []
+            loop = asyncio.get_running_loop()
+            _ = loop.create_task(self.start())
+
+    async def on_app_shutdown(self) -> None:
+        """Attach the worker to the running event loop."""
+        if not self.separate_process:
+            loop = asyncio.get_running_loop()
+            _ = loop.create_task(self.stop())

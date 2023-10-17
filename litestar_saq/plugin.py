@@ -66,9 +66,12 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
             )
             app_config.route_handlers.append(build_controller(self._config.web_path))
         app_config.on_startup.append(self._config.update_app_state)
-        app_config.on_shutdown.append(self._config.on_shutdown)
         app_config.signature_namespace.update(self._config.signature_namespace)
-
+        workers = self.get_workers()
+        for worker in workers:
+            if not worker.separate_process:
+                app_config.on_startup.append(worker.on_app_startup)
+                app_config.on_shutdown.append(worker.on_app_shutdown)
         return app_config
 
     def get_workers(self) -> list[Worker]:
@@ -88,6 +91,7 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
                 after_process=queue_config.after_process,
                 timers=queue_config.timers,
                 dequeue_timeout=queue_config.dequeue_timeout,
+                separate_process=queue_config.separate_process,
             )
             for queue_config in self._config.queue_configs
         )
