@@ -62,6 +62,10 @@ class SAQConfig:
     """Pre-configured Redis instance to use."""
     redis_url: str | None = None
     """Redis URL to connect with."""
+    redis_kwargs: dict[str, Any] = field(
+        default_factory=lambda: {"socket_connect_timeout": 2, "socket_keepalive": 5, "health_check_interval": 5},
+    )
+    """Redis kwargs to pass into a redis instance."""
     namespace: str = "saq"
     """Namespace to use for Redis"""
     queue_instances: Mapping[str, Queue] | None = None
@@ -139,12 +143,8 @@ class SAQConfig:
             return self.redis
         pool = ConnectionPool.from_url(
             url=cast("str", self.redis_url),
-            decode_responses=False,
-            socket_connect_timeout=2,
-            socket_keepalive=5,
-            health_check_interval=5,
         )
-        self.redis = Redis(connection_pool=pool)
+        self.redis = Redis(connection_pool=pool, **self.redis_kwargs)
         return self.redis
 
     def get_queues(self) -> TaskQueues:
