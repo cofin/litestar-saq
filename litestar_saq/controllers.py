@@ -7,6 +7,7 @@ from litestar.exceptions import NotFoundException
 
 if TYPE_CHECKING:
     from litestar import Controller
+    from litestar.types.callable_types import Guard
     from saq.types import QueueInfo
 
     from litestar_saq.base import Job
@@ -21,14 +22,15 @@ async def job_info(queue: TaskQueue, job_id: str) -> Job:
     return cast("Job", job)
 
 
-@lru_cache
-def build_controller(url_base: str = "/saq") -> type[Controller]:  # noqa: C901
+@lru_cache(typed=True)
+def build_controller(url_base: str = "/saq", controller_guards: list[Guard] | None = None) -> type[Controller]:  # noqa: C901
     from litestar import Controller, MediaType, get, post
     from litestar.exceptions import NotFoundException
     from litestar.status_codes import HTTP_202_ACCEPTED
 
     class SAQController(Controller):
         tags = ["SAQ"]
+        guards = controller_guards
 
         @get(
             operation_id="WorkerQueueList",
@@ -133,7 +135,6 @@ def build_controller(url_base: str = "/saq") -> type[Controller]:  # noqa: C901
             operation_id="WorkerIndex",
             name="worker:index",
             media_type=MediaType.HTML,
-            cache=False,
             include_in_schema=False,
         )
         async def index(self) -> str:

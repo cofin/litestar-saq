@@ -64,7 +64,7 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
                     opt={"exclude_from_auth": True},
                 ),
             )
-            app_config.route_handlers.append(build_controller(self._config.web_path))
+            app_config.route_handlers.append(build_controller(self._config.web_path, self._config.web_guards))  # type: ignore[arg-type]
         app_config.on_startup.append(self._config.update_app_state)
         app_config.signature_namespace.update(self._config.signature_namespace)
         workers = self.get_workers()
