@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
     from litestar import Litestar
     from litestar.datastructures.state import State
+    from litestar.types.callable_types import Guard
     from saq.types import Function
 
 T = TypeVar("T")
@@ -92,6 +93,8 @@ class SAQConfig:
     """Location of the static files to serve for the SAQ UI"""
     web_path = "/saq"
     """Base path to serve the SAQ web UI"""
+    web_guards: list[Guard] | None = field(default=None)
+    """Guards to apply to web endpoints."""
 
     def __post_init__(self) -> None:
         if self.redis is not None and self.redis_url is not None:
