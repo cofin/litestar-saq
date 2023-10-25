@@ -1,23 +1,21 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Collection, TypeVar, cast
 
 from litestar.di import Provide
-from litestar.exceptions import ImproperlyConfiguredException
 from litestar.plugins import CLIPluginProtocol, InitPluginProtocol
 from litestar.static_files import StaticFilesConfig
 
-from litestar_saq.base import Queue, Worker
-from litestar_saq.config import SAQConfig
-from litestar_saq.controllers import SAQController
-
-__all__ = ["SAQConfig", "SAQPlugin"]
-
+from litestar_saq.base import Worker
+from litestar_saq.controllers import build_controller
 
 if TYPE_CHECKING:
     from click import Group
     from litestar.config.app import AppConfig
+    from saq.types import Function
 
+    from litestar_saq.base import Queue
+    from litestar_saq.config import SAQConfig, TaskQueues
 
 T = TypeVar("T")
 
@@ -37,9 +35,9 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
         self._worker_instances: list[Worker] | None = None
 
     def on_cli_init(self, cli: Group) -> None:
-        from litestar_saq.cli import background_worker_group
+        from litestar_saq.cli import build_cli_app
 
-        cli.add_command(background_worker_group)
+        cli.add_command(build_cli_app())
         return super().on_cli_init(cli)
 
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
@@ -66,22 +64,25 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
                     opt={"exclude_from_auth": True},
                 ),
             )
-            app_config.route_handlers.append(SAQController)
+            app_config.route_handlers.append(build_controller(self._config.web_path, self._config.web_guards))  # type: ignore[arg-type]
         app_config.on_startup.append(self._config.update_app_state)
-        app_config.on_shutdown.append(self._config.on_shutdown)
         app_config.signature_namespace.update(self._config.signature_namespace)
+        workers = self.get_workers()
+        for worker in workers:
+            if not worker.separate_process:
+                app_config.on_startup.append(worker.on_app_startup)
+                app_config.on_shutdown.append(worker.on_app_shutdown)
         return app_config
 
     def get_workers(self) -> list[Worker]:
         """Return workers"""
         if self._worker_instances is not None:
             return self._worker_instances
-        queues = self._config.get_queues()
         self._worker_instances = []
         self._worker_instances.extend(
             Worker(
-                queue=self._get_queue(queue_config.name, queues),
-                functions=queue_config.tasks,
+                queue=self.get_queue(queue_config.name),
+                functions=cast("Collection[Function]", queue_config.tasks),
                 cron_jobs=queue_config.scheduled_tasks,
                 concurrency=queue_config.concurrency,
                 startup=queue_config.startup,
@@ -90,15 +91,14 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
                 after_process=queue_config.after_process,
                 timers=queue_config.timers,
                 dequeue_timeout=queue_config.dequeue_timeout,
+                separate_process=queue_config.separate_process,
             )
             for queue_config in self._config.queue_configs
         )
         return self._worker_instances
 
-    @staticmethod
-    def _get_queue(name: str, queues: dict[str, Queue]) -> Queue:
-        queue = queues.get(name)
-        if queue is not None:
-            return queue
-        msg = "Could not find the specified queue.  Please check your configuration."
-        raise ImproperlyConfiguredException(msg)
+    def get_queues(self) -> TaskQueues:
+        return self._config.get_queues()
+
+    def get_queue(self, name: str) -> Queue:
+        return self.get_queues().get(name)

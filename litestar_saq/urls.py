@@ -1,8 +1,0 @@
-WORKER_ROOT = "/saq"
-WORKER_QUEUE_ROOT = "/saq/queues/{queue_id:str}"
-WORKER_JOB_ROOT = "/saq/queues/{queue_id:str}/jobs/{job_id:str}"
-WORKER_QUEUE_LIST = "/saq/api/queues/"
-WORKER_QUEUE_DETAIL = "/saq/api/queues/{queue_id:str}/"
-WORKER_JOB_DETAIL = "/saq/api/queues/{queue_id:str}/jobs/{job_id:str}"
-WORKER_JOB_RETRY = "/saq/api/queues/{queue_id:str}/jobs/{job_id:str}/retry"
-WORKER_JOB_ABORT = "/saq/api/queues/{queue_id:str}/jobs/{job_id:str}/abort"

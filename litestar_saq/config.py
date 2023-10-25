@@ -2,23 +2,29 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, Collection, Dict, Mapping, TypeVar, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
 from redis.asyncio import ConnectionPool, Redis
-from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
+from saq.queue import Queue as SaqQueue
+from saq.types import DumpType as SaqDumpType
+from saq.types import LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
+from litestar_saq._util import import_string, module_to_os_path
 from litestar_saq.base import CronJob, Job, Queue, Worker
-from litestar_saq.util import module_to_os_path
 
 if TYPE_CHECKING:
     from typing import Any
 
     from litestar import Litestar
     from litestar.datastructures.state import State
+    from litestar.types.callable_types import Guard
+    from saq.types import Function
 
 T = TypeVar("T")
+TaskQueue = Queue | SaqQueue
+DumpType = SaqDumpType | Callable[[Dict], bytes]
 
 
 def serializer(value: Any) -> str:
@@ -38,18 +44,34 @@ def _get_static_files() -> Path:
 
 
 @dataclass
+class TaskQueues:
+    queues: Mapping[str, Queue] = field(default_factory=dict)
+
+    def get(self, name: str) -> Queue:
+        queue = self.queues.get(name)
+        if queue is not None:
+            return queue
+        msg = "Could not find the specified queue.  Please check your configuration."
+        raise ImproperlyConfiguredException(msg)
+
+
+@dataclass
 class SAQConfig:
     """SAQ Configuration."""
 
-    queue_configs: list[QueueConfig] = field(default_factory=lambda: [QueueConfig()])
+    queue_configs: Collection[QueueConfig] = field(default_factory=lambda: [QueueConfig()])
     """Configuration for Queues"""
     redis: Redis | None = None
     """Pre-configured Redis instance to use."""
     redis_url: str | None = None
     """Redis URL to connect with."""
+    redis_kwargs: dict[str, Any] = field(
+        default_factory=lambda: {"socket_connect_timeout": 2, "socket_keepalive": 5, "health_check_interval": 5},
+    )
+    """Redis kwargs to pass into a redis instance."""
     namespace: str = "saq"
     """Namespace to use for Redis"""
-    queue_instances: dict[str, Queue] | None = None
+    queue_instances: Mapping[str, Queue] | None = None
     """Current configured queue instances.  When None, queues will be auto-created on startup"""
     queues_dependency_key: str = field(default="task_queues")
     """Key to use for storing dependency information in litestar."""
@@ -71,6 +93,8 @@ class SAQConfig:
     """Location of the static files to serve for the SAQ UI"""
     web_path = "/saq"
     """Base path to serve the SAQ web UI"""
+    web_guards: list[Guard] | None = field(default=None)
+    """Guards to apply to web endpoints."""
 
     def __post_init__(self) -> None:
         if self.redis is not None and self.redis_url is not None:
@@ -84,28 +108,25 @@ class SAQConfig:
         Returns:
             A string keyed dict of names to be added to the namespace for signature forward reference resolution.
         """
-        return {"Queue": Queue, "Worker": Worker, "QueueInfo": QueueInfo, "Job": Job, "QueueStats": QueueStats}
+        return {
+            "Queue": Queue,
+            "Worker": Worker,
+            "QueueInfo": QueueInfo,
+            "Job": Job,
+            "QueueStats": QueueStats,
+            "TaskQueues": TaskQueues,
+        }
 
-    async def on_shutdown(self, app: Litestar) -> None:
-        """Disposes of the SAQ Workers.
-
-        Args:
-            app: The ``Litestar`` instance.
-
-        Returns:
-            None
-        """
-
-    def provide_queues(self, state: State) -> dict[str, Queue]:
-        """Create an engine instance.
+    def provide_queues(self, state: State) -> TaskQueues:
+        """Provide the configured job queues.
 
         Args:
             state: The ``Litestar.state`` instance.
 
         Returns:
-            An engine instance.
+            a ``TaskQueues`` instance.
         """
-        return cast("dict[str, Queue]", state.get(self.queues_dependency_key))
+        return cast("TaskQueues", state.get(self.queues_dependency_key))
 
     def get_redis(self) -> Redis:
         """Get the configured Redis connection.
@@ -117,33 +138,29 @@ class SAQConfig:
             return self.redis
         pool = ConnectionPool.from_url(
             url=cast("str", self.redis_url),
-            decode_responses=False,
-            socket_connect_timeout=2,
-            socket_keepalive=5,
-            health_check_interval=5,
         )
-        self.redis = Redis(connection_pool=pool)
+        self.redis = Redis(connection_pool=pool, **self.redis_kwargs)
         return self.redis
 
-    def get_queues(self) -> dict[str, Queue]:
+    def get_queues(self) -> TaskQueues:
         """Get the configured SAQ queues.
 
         Returns:
             Dictionary of queues.
         """
         if self.queue_instances is not None:
-            return self.queue_instances
+            return TaskQueues(queues=self.queue_instances)
         self.queue_instances = {}
         for queue_config in self.queue_configs:
             self.queue_instances[queue_config.name] = Queue(
                 queue_namespace=self.namespace,
                 redis=self.get_redis(),
                 name=queue_config.name,
-                dump=self.json_serializer,
+                dump=cast("SaqDumpType", self.json_serializer),
                 load=self.json_deserializer,
                 max_concurrent_ops=queue_config.max_concurrent_ops,
             )
-        return self.queue_instances
+        return TaskQueues(queues=self.queue_instances)
 
     def create_app_state_items(self) -> dict[str, Any]:
         """Key/value pairs to be stored in application state."""
@@ -170,13 +187,13 @@ class QueueConfig:
     """The name of the queue to create."""
     concurrency: int = 10
     """Number of jobs to process concurrently"""
-    max_concurrent_ops: int = 20
+    max_concurrent_ops: int = 15
     """Maximum concurrent operations. (default 20)
             This throttles calls to `enqueue`, `job`, and `abort` to prevent the Queue
             from consuming too many Redis connections."""
-    tasks: list[ReceivesContext] = field(default_factory=list)
+    tasks: Collection[ReceivesContext | tuple[str, Function] | str] = field(default_factory=list)
     """Allowed list of functions to execute in this queue"""
-    scheduled_tasks: list[CronJob] = field(default_factory=list)
+    scheduled_tasks: Collection[CronJob] = field(default_factory=list)
     """Scheduled cron jobs to execute in this queue."""
     startup: ReceivesContext | None = None
     """Async callable to call on startup"""
@@ -194,3 +211,17 @@ class QueueConfig:
             abort: how often to check if a job is aborted"""
     dequeue_timeout: float = 0
     """How long it will wait to dequeue"""
+    separate_process: bool = True
+    """Executes as a separate event loop when True.
+            Set it False to execute within the Litestar application."""
+
+    def __post_init__(self) -> None:
+        self.tasks = [self._get_or_import_task(task) for task in self.tasks]
+
+    @staticmethod
+    def _get_or_import_task(task_or_import_string: str | tuple[str, Function] | ReceivesContext) -> ReceivesContext:
+        if isinstance(task_or_import_string, str):
+            return cast("ReceivesContext", import_string(task_or_import_string))
+        if isinstance(task_or_import_string, tuple):
+            return task_or_import_string[1]
+        return task_or_import_string

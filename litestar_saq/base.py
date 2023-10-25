@@ -1,36 +1,46 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, cast
 
 from saq import Job as SaqJob
 from saq import Worker as SaqWorker
 from saq.job import CronJob as SaqCronJob
 from saq.queue import Queue as SaqQueue
 
+from litestar_saq._util import import_string
+
 if TYPE_CHECKING:
     from collections.abc import Collection
-    from signal import Signals
 
     from redis.asyncio.client import Redis
-    from saq.types import DumpType, Function, LoadType, PartialTimersDict, ReceivesContext
+    from saq.types import DumpType as SaqDumpType
+    from saq.types import Function, LoadType, PartialTimersDict, ReceivesContext
+
+    from litestar_saq.config import DumpType
 
 
 @dataclass
 class Job(SaqJob):
     """Job Details"""
 
-    job_name: str | None = None
-    job_description: str | None = None
-
 
 @dataclass
 class CronJob(SaqCronJob):
     """Cron Job Details"""
 
-    job_name: str | None = None
-    job_description: str | None = None
+    function: Function | str  # type: ignore[assignment]
+    meta: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.function = self._get_or_import_function(self.function)
+
+    @staticmethod
+    def _get_or_import_function(function_or_import_string: str | Function) -> Function:
+        if isinstance(function_or_import_string, str):
+            return cast("Function", import_string(function_or_import_string))
+        return function_or_import_string
 
 
 class Queue(SaqQueue):
@@ -56,12 +66,7 @@ class Queue(SaqQueue):
         queue_namespace: str | None = None,
     ) -> None:
         self._namespace = queue_namespace if queue_namespace is not None else "saq"
-        super().__init__(redis, name, dump, load, max_concurrent_ops)
-
-    def temp(self, *args: Any, **kwargs: Any) -> None:
-        """Initialize a new queue."""
-        self._namespace = kwargs.pop("queue_namespace", "saq")
-        super().__init__(*args, **kwargs)
+        super().__init__(redis, name, cast("SaqDumpType", dump), load, max_concurrent_ops)
 
     def namespace(self, key: str) -> str:
         """Make the namespace unique per app."""
@@ -82,12 +87,14 @@ class Queue(SaqQueue):
 class Worker(SaqWorker):
     """Worker."""
 
+    """
     # same issue: https://github.com/samuelcolvin/arq/issues/182
     SIGNALS: list[Signals] = []
+    """
 
     def __init__(
         self,
-        queue: Queue | SaqQueue,
+        queue: Queue,
         functions: Collection[Function | tuple[str, Function]],
         *,
         concurrency: int = 10,
@@ -98,9 +105,11 @@ class Worker(SaqWorker):
         after_process: ReceivesContext | None = None,
         timers: PartialTimersDict | None = None,
         dequeue_timeout: float = 0,
+        separate_process: bool = True,
     ) -> None:
+        self.separate_process = separate_process
         super().__init__(
-            queue,
+            cast("SaqQueue", queue),
             functions,
             concurrency=concurrency,
             cron_jobs=cron_jobs,
@@ -114,5 +123,13 @@ class Worker(SaqWorker):
 
     async def on_app_startup(self) -> None:
         """Attach the worker to the running event loop."""
-        loop = asyncio.get_running_loop()
-        _ = loop.create_task(self.start())
+        if not self.separate_process:
+            self.SIGNALS = []
+            loop = asyncio.get_running_loop()
+            _ = loop.create_task(self.start())
+
+    async def on_app_shutdown(self) -> None:
+        """Attach the worker to the running event loop."""
+        if not self.separate_process:
+            loop = asyncio.get_running_loop()
+            _ = loop.create_task(self.stop())
