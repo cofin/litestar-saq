@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 TaskQueue = Union[Queue, SaqQueue]
-DumpType = SaqDumpType | Callable[[Dict], bytes]
+DumpType = Union[SaqDumpType, Callable[[Dict], bytes]]
 
 
 def serializer(value: Any) -> str:
