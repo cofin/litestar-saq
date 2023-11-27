@@ -201,6 +201,7 @@ classmethod-decorators = [
   "TRY",
   "UP006",
   "SLF001",
+  "ERA001",
 ]
 
 [tool.ruff.isort]
