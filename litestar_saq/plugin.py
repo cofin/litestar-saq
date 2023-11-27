@@ -23,7 +23,7 @@ T = TypeVar("T")
 class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
     """SAQ plugin."""
 
-    __slots__ = ("_config",)
+    __slots__ = ("_config", "_worker_instances")
 
     def __init__(self, config: SAQConfig) -> None:
         """Initialize ``SAQPlugin``.

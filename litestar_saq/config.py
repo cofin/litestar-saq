@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Collection, Dict, Mapping, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, Collection, Dict, Mapping, TypeVar, Union, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
@@ -23,8 +23,8 @@ if TYPE_CHECKING:
     from saq.types import Function
 
 T = TypeVar("T")
-TaskQueue = Queue | SaqQueue
-DumpType = SaqDumpType | Callable[[Dict], bytes]
+TaskQueue = Union[Queue, SaqQueue]
+DumpType = Union[SaqDumpType, Callable[[Dict], bytes]]
 
 
 def serializer(value: Any) -> str:
