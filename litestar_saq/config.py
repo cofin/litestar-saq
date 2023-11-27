@@ -115,6 +115,7 @@ class SAQConfig:
             "Job": Job,
             "QueueStats": QueueStats,
             "TaskQueues": TaskQueues,
+            "TaskQueue": TaskQueue,
         }
 
     def provide_queues(self, state: State) -> TaskQueues:
