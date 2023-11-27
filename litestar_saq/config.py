@@ -126,7 +126,7 @@ class SAQConfig:
         Returns:
             a ``TaskQueues`` instance.
         """
-        return cast("TaskQueues", state.get(self.queues_dependency_key))
+        return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
 
     def get_redis(self) -> Redis:
         """Get the configured Redis connection.
