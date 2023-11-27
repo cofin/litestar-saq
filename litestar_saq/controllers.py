@@ -23,7 +23,10 @@ async def job_info(queue: TaskQueue, job_id: str) -> Job:
 
 
 @lru_cache(typed=True)
-def build_controller(url_base: str = "/saq", controller_guards: list[Guard] | None = None) -> type[Controller]:  # noqa: C901
+def build_controller(  # noqa: C901
+    url_base: str = "/saq",
+    controller_guards: list[Guard] | None = None,
+) -> type[Controller]:
     from litestar import Controller, MediaType, get, post
     from litestar.exceptions import NotFoundException
     from litestar.status_codes import HTTP_202_ACCEPTED
