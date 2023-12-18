@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Collection, Iterator, TypeVar, cast
 
-from litestar.plugins import CLIPluginProtocol, InitPluginProtocol
+from litestar.plugins import CLIPlugin, InitPluginProtocol
 
 from litestar_saq.base import Worker
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
+class SAQPlugin(InitPluginProtocol, CLIPlugin):
     """SAQ plugin."""
 
     __slots__ = ("_config", "_worker_instances")
