@@ -26,6 +26,7 @@ saq = SAQPlugin(
     config=SAQConfig(
         redis_url="redis://localhost:6397/0",
         web_enabled=True,
+        use_server_lifespan=True,
         queue_configs=[
             QueueConfig(
                 name="samples",

@@ -61,7 +61,6 @@ docs = [
 ]
 linting = [
   "pre-commit>=3.4.0",
-  "black>=23.7.0",
   "mypy>=1.5.1",
   "ruff>=0.0.287",
   "types-click",

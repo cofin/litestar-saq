@@ -40,7 +40,7 @@ def serializer(value: Any) -> str:
 
 
 def _get_static_files() -> Path:
-    return Path(module_to_os_path("saq.web") / "static")
+    return Path(module_to_os_path("saq") / "web" / "static")
 
 
 @dataclass

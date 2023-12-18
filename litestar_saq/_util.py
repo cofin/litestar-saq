@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import importlib
+import importlib.util
 import sys
 from functools import lru_cache
 from importlib import import_module
-from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -25,10 +24,10 @@ def module_to_os_path(dotted_path: str) -> Path:
     Ensures that pkgutil returns a valid source file loader.
     """
     src = importlib.util.find_spec(dotted_path)
-    if not isinstance(src, SourceFileLoader):
+    if src is None:
         msg = f"Couldn't find the path for {dotted_path}"
         raise TypeError(msg)
-    return Path(str(src.path).removesuffix("/__init__.py"))  # type: ignore[unreachable]
+    return Path(str(src.origin).removesuffix("/__init__.py"))  # type: ignore[unreachable]
 
 
 def import_string(dotted_path: str) -> Any:
