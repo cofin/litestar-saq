@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Collection, TypeVar, cast
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Collection, Iterator, TypeVar, cast
 
-from litestar.di import Provide
 from litestar.plugins import CLIPluginProtocol, InitPluginProtocol
-from litestar.static_files import StaticFilesConfig
 
 from litestar_saq.base import Worker
-from litestar_saq.controllers import build_controller
 
 if TYPE_CHECKING:
     from click import Group
+    from litestar import Litestar
     from litestar.config.app import AppConfig
     from saq.types import Function
 
@@ -34,6 +33,10 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
         self._config = config
         self._worker_instances: list[Worker] | None = None
 
+    @property
+    def config(self) -> SAQConfig:
+        return self._config
+
     def on_cli_init(self, cli: Group) -> None:
         from litestar_saq.cli import build_cli_app
 
@@ -46,6 +49,12 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
         Args:
             app_config: The :class:`AppConfig <.config.app.AppConfig>` instance.
         """
+
+        from litestar.di import Provide
+        from litestar.static_files import StaticFilesConfig
+
+        from litestar_saq.controllers import build_controller
+
         app_config.dependencies.update(
             {
                 self._config.queues_dependency_key: Provide(
@@ -102,3 +111,27 @@ class SAQPlugin(InitPluginProtocol, CLIPluginProtocol):
 
     def get_queue(self, name: str) -> Queue:
         return self.get_queues().get(name)
+
+    @contextmanager
+    def server_lifespan(self, app: Litestar) -> Iterator[None]:
+        import multiprocessing
+
+        from litestar_saq.cli import run_saq_worker
+
+        if self._config.use_server_lifespan:
+            processes = [
+                multiprocessing.Process(target=run_saq_worker, args=(self.get_workers(), app.logging_config))
+                for _ in range(self._config.worker_processes)
+            ]
+
+            try:
+                for p in processes:
+                    p.start()
+                yield
+            finally:
+                for p in processes:
+                    if p.is_alive():
+                        p.terminate()
+                        p.join()
+        else:
+            yield

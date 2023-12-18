@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Collection, Dict, Mapping, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Callable, Collection, Dict, Literal, Mapping, TypeVar, Union, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
@@ -80,8 +80,7 @@ class SAQConfig:
 
     Default is set to 1.
     """
-    web_enabled: bool = False
-    """If true, the worker admin UI is launched on worker startup.."""
+
     json_deserializer: LoadType = decode_json
     """This is a Python callable that will
     convert a JSON string to a Python object. By default, this is set to Litestar's
@@ -91,10 +90,16 @@ class SAQConfig:
     By default, Litestar's :attr:`encode_json() <.serialization.encode_json>` is used."""
     static_files: Path = field(default_factory=_get_static_files)
     """Location of the static files to serve for the SAQ UI"""
+    web_enabled: bool = False
+    """If true, the worker admin UI is launched on worker startup.."""
     web_path = "/saq"
     """Base path to serve the SAQ web UI"""
     web_guards: list[Guard] | None = field(default=None)
     """Guards to apply to web endpoints."""
+    web_include_in_schema: bool = True
+    """Include Queue API endpoints in generated OpenAPI schema"""
+    use_server_lifespan: bool = False
+    """Utilize the server lifespan hook to run SAQ."""
 
     def __post_init__(self) -> None:
         if self.redis is not None and self.redis_url is not None:
@@ -189,7 +194,7 @@ class QueueConfig:
     concurrency: int = 10
     """Number of jobs to process concurrently"""
     max_concurrent_ops: int = 15
-    """Maximum concurrent operations. (default 20)
+    """Maximum concurrent operations. (default 15)
             This throttles calls to `enqueue`, `job`, and `abort` to prevent the Queue
             from consuming too many Redis connections."""
     tasks: Collection[ReceivesContext | tuple[str, Function] | str] = field(default_factory=list)
@@ -212,6 +217,9 @@ class QueueConfig:
             abort: how often to check if a job is aborted"""
     dequeue_timeout: float = 0
     """How long it will wait to dequeue"""
+    multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing"
+    """Executes with the multiprocessing or threading backend.
+            Set it threading for workloads that aren't CPU bound."""
     separate_process: bool = True
     """Executes as a separate event loop when True.
             Set it False to execute within the Litestar application."""
