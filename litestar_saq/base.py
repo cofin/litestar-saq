@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from saq import Job as SaqJob
 from saq import Worker as SaqWorker
@@ -106,8 +106,10 @@ class Worker(SaqWorker):
         timers: PartialTimersDict | None = None,
         dequeue_timeout: float = 0,
         separate_process: bool = True,
+        multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing",
     ) -> None:
         self.separate_process = separate_process
+        self.multiprocessing_mode = multiprocessing_mode
         super().__init__(
             cast("SaqQueue", queue),
             functions,

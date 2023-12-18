@@ -30,7 +30,7 @@ license = {text = "MIT"}
 name = "litestar-saq"
 readme = "README.md"
 requires-python = ">=3.8"
-version = "0.1.14"
+version = "0.1.15"
 
 [project.optional-dependencies]
 hiredis = ["hiredis"]
@@ -61,7 +61,6 @@ docs = [
 ]
 linting = [
   "pre-commit>=3.4.0",
-  "black>=23.7.0",
   "mypy>=1.5.1",
   "ruff>=0.0.287",
   "types-click",
