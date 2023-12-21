@@ -9,8 +9,7 @@ if TYPE_CHECKING:
 
     from litestar_saq.base import Worker
     from litestar_saq.plugin import SAQPlugin
-
-
+ 
 def build_cli_app() -> Group:
     import asyncio
     import multiprocessing
