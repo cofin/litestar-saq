@@ -116,9 +116,13 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     def server_lifespan(self, app: Litestar) -> Iterator[None]:
         import multiprocessing
 
+        from litestar.cli._utils import console
+
         from litestar_saq.cli import run_saq_worker
 
         if self._config.use_server_lifespan:
+            console.rule("[yellow]Starting SAQ Workers[/]", align="left")
+
             processes = [
                 multiprocessing.Process(target=run_saq_worker, args=(self.get_workers(), app.logging_config))
                 for _ in range(self._config.worker_processes)
@@ -133,5 +137,6 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                     if p.is_alive():
                         p.terminate()
                         p.join()
+            console.print("[yellow]SAQ workers stopped.[/]")
         else:
             yield

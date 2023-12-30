@@ -65,6 +65,7 @@ def build_cli_app() -> Group:
             loop = asyncio.get_event_loop()
             for worker_instance in plugin.get_workers():
                 loop.run_until_complete(worker_instance.stop())
+        console.print("[yellow]SAQ workers stopped.[/]")
 
     @background_worker_group.command(
         name="status",
