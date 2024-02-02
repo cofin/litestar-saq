@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from importlib.util import find_spec
 from typing import TYPE_CHECKING, Collection, Iterator, TypeVar, cast
 
 from litestar.plugins import CLIPlugin, InitPluginProtocol
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
     from litestar_saq.config import SAQConfig, TaskQueues
 
 T = TypeVar("T")
+
+STRUCTLOG_INSTALLED = find_spec("structlog") is not None
 
 
 class SAQPlugin(InitPluginProtocol, CLIPlugin):
