@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING, Callable, Collection, Dict, Literal, Mapping, 
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
+from litestar.utils.module_loader import import_string, module_to_os_path
 from redis.asyncio import ConnectionPool, Redis
 from saq.queue import Queue as SaqQueue
 from saq.types import DumpType as SaqDumpType
 from saq.types import LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
-from litestar_saq._util import import_string, module_to_os_path
 from litestar_saq.base import CronJob, Job, Queue, Worker
 
 if TYPE_CHECKING:

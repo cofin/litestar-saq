@@ -54,7 +54,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         """
 
         from litestar.di import Provide
-        from litestar.static_files import StaticFilesConfig
+        from litestar.static_files import create_static_files_router
 
         from litestar_saq.controllers import build_controller
 
@@ -67,13 +67,14 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             },
         )
         if self._config.web_enabled:
-            app_config.static_files_config.append(
-                StaticFilesConfig(
+            app_config.route_handlers.append(
+                create_static_files_router(
                     directories=[self._config.static_files],
                     path=f"{self._config.web_path}/static",
                     name="saq",
                     html_mode=False,
                     opt={"exclude_from_auth": True},
+                    include_in_schema=False,
                 ),
             )
             app_config.route_handlers.append(build_controller(self._config.web_path, self._config.web_guards))  # type: ignore[arg-type]
@@ -118,11 +119,14 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     @contextmanager
     def server_lifespan(self, app: Litestar) -> Iterator[None]:
         import multiprocessing
+        import platform
 
         from litestar.cli._utils import console
 
         from litestar_saq.cli import run_saq_worker
 
+        if platform.system() == "Darwin":
+            multiprocessing.set_start_method("fork", force=True)
         if self._config.use_server_lifespan:
             console.rule("[yellow]Starting SAQ Workers[/]", align="left")
 
@@ -140,6 +144,6 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                     if p.is_alive():
                         p.terminate()
                         p.join()
-            console.print("[yellow]SAQ workers stopped.[/]")
+                console.print("[yellow]SAQ workers stopped.[/]")
         else:
             yield
