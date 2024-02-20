@@ -11,9 +11,10 @@ if TYPE_CHECKING:
     from litestar_saq.plugin import SAQPlugin
 
 
-def build_cli_app() -> Group:
+def build_cli_app() -> Group:  # noqa: C901
     import asyncio
     import multiprocessing
+    import platform
     from typing import cast
 
     from click import IntRange, group, option
@@ -45,6 +46,10 @@ def build_cli_app() -> Group:
     ) -> None:
         """Run the API server."""
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
+
+        if platform.system() == "Darwin":
+            multiprocessing.set_start_method("fork", force=True)
+
         if app.logging_config is not None:
             app.logging_config.configure()
         if debug is not None or verbose is not None:
@@ -133,14 +138,16 @@ def run_saq_worker(workers: list[Worker], logging_config: BaseLoggingConfig | No
     """Run a worker."""
     import asyncio
 
+    tasks = []
     loop = asyncio.get_event_loop()
     if logging_config is not None:
         logging_config.configure()
     try:
+
         for i, worker_instance in enumerate(workers):
             if worker_instance.separate_process:
                 if i < len(workers) - 1:
-                    loop.create_task(worker_instance.start())
+                    tasks.append(loop.create_task(worker_instance.start()))
                 else:
                     loop.run_until_complete(worker_instance.start())
     except KeyboardInterrupt:

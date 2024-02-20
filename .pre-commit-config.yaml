@@ -2,7 +2,7 @@ default_language_version:
   python: "3.11"
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v3.0.0
+    rev: v3.1.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
@@ -17,7 +17,7 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.1.8"
+    rev: "v0.2.2"
     hooks:
       - id: ruff
         args: ["--fix"]
@@ -27,13 +27,8 @@ repos:
     hooks:
       - id: codespell
         exclude: "pdm.lock"
-  - repo: https://github.com/psf/black
-    rev: 23.12.0
-    hooks:
-      - id: black
-        args: [--config=./pyproject.toml]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v1.7.1"
+    rev: "v1.8.0"
     hooks:
       - id: mypy
         exclude: "docs"
@@ -41,9 +36,7 @@ repos:
           [
             saq,
             pytest,
-            pytest-asyncio,
             pytest-lazy-fixture,
-            time-machine,
             httpx,
             pytest-mock,
             pytest-timeout,

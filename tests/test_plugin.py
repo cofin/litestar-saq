@@ -14,10 +14,8 @@ from litestar_saq.plugin import SAQPlugin
 @pytest.mark.parametrize(
     "cli_group",
     [
-        # ID: Test-CLI-Init-1
         Mock(Group),
     ],
-    ids=["happy-path"],
 )
 def test_on_cli_init(cli_group: Group) -> None:
     # Arrange
@@ -35,10 +33,8 @@ def test_on_cli_init(cli_group: Group) -> None:
 @pytest.mark.parametrize(
     "queues",
     [
-        # ID: Test-Get-Queues-1
         Mock(),
     ],
-    ids=["happy-path"],
 )
 def test_get_queues(queues: TaskQueues) -> None:
     # Arrange
