@@ -80,7 +80,7 @@ class Queue(SaqQueue):
         Returns:
             str: Job ID for the specified key
         """
-        return f"{self._namespace}:{self.name}:job:{job_key}"
+        return f"{self._namespace}:job:{self.name}:{job_key}"
 
 
 class Worker(SaqWorker):
