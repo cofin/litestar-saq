@@ -18,7 +18,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "litestar[cli]>=2.0.1",
+  "litestar>=2.0.1",
   "saq>=0.12.0",
 ]
 description = "Litestar integration for SAQ"
@@ -30,7 +30,7 @@ license = {text = "MIT"}
 name = "litestar-saq"
 readme = "README.md"
 requires-python = ">=3.8"
-version = "0.1.17"
+version = "0.1.18"
 
 [project.optional-dependencies]
 hiredis = ["hiredis"]
