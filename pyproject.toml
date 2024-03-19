@@ -30,7 +30,7 @@ license = {text = "MIT"}
 name = "litestar-saq"
 readme = "README.md"
 requires-python = ">=3.8"
-version = "0.1.18"
+version = "0.1.19"
 
 [project.optional-dependencies]
 hiredis = ["hiredis"]
