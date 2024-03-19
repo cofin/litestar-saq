@@ -132,6 +132,7 @@ def build_controller(  # noqa: C901
         @get(
             [
                 url_base,
+                f"{url_base}/",
                 f"{url_base}/queues/{{queue_id:str}}",
                 f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
             ],
