@@ -110,6 +110,10 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         )
         return self._worker_instances
 
+    def remove_workers(self) -> None:
+        self._worker_instances = None
+
+
     def get_queues(self) -> TaskQueues:
         return self._config.get_queues()
 
