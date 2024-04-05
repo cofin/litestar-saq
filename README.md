@@ -36,7 +36,7 @@ INFO - 2023-10-04 17:39:03,255 - saq - worker - Worker starting: Queue<redis=Red
 INFO - 2023-10-04 17:39:06,545 - saq - worker - Worker shutting down
 ```
 
-You can also start the process for only specific queues. This is helpful you want separated processes working on different queues instead of combining them. This allows separation of resources.
+You can also start the process for only specific queues. This is helpful if you want separated processes working on different queues instead of combining them.
 
 ```shell
 litestar --app-dir=examples/ --app basic:app workers run --queues sample
