@@ -36,11 +36,20 @@ def build_cli_app() -> Group:  # noqa: C901
         required=False,
         show_default=True,
     )
+    @option(
+        "--queues",
+        help="List of queue names to process.",
+        type=str,
+        multiple=True,
+        required=False,
+        show_default=False,
+    )
     @option("-v", "--verbose", help="Enable verbose logging.", is_flag=True, default=None, type=bool, required=False)
     @option("-d", "--debug", help="Enable debugging.", is_flag=True, default=None, type=bool, required=False)
     def run_worker(
         app: Litestar,
         workers: int,
+        queues: tuple[str, ...] | None,
         verbose: bool | None,
         debug: bool | None,
     ) -> None:
@@ -55,6 +64,9 @@ def build_cli_app() -> Group:  # noqa: C901
         if debug is not None or verbose is not None:
             app.debug = True
         plugin = get_saq_plugin(app)
+        if queues is not None:
+            queue_list = list(queues)
+            limited_start_up(plugin, queue_list)
         show_saq_info(app, workers, plugin)
         if workers > 1:
             for _ in range(workers - 1):
@@ -94,6 +106,10 @@ def build_cli_app() -> Group:  # noqa: C901
 
     return background_worker_group
 
+def limited_start_up(plugin: SAQPlugin, queues: list[str]) -> None:
+    """Reset the workers and include only the specified queues."""
+    plugin.remove_workers()
+    plugin.config.filter_delete_queues(queues)
 
 def get_saq_plugin(app: Litestar) -> SAQPlugin:
     """Retrieve a SAQ plugin from the Litestar application's plugins.

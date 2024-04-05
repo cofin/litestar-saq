@@ -35,3 +35,13 @@ Starting SAQ Workers ───────────────────�
 INFO - 2023-10-04 17:39:03,255 - saq - worker - Worker starting: Queue<redis=Redis<ConnectionPool<Connection<host=localhost,port=6397,db=0>>>, name='samples'>
 INFO - 2023-10-04 17:39:06,545 - saq - worker - Worker shutting down
 ```
+
+You can also start the process for only specific queues. This is helpful if you want separated processes working on different queues instead of combining them.
+
+```shell
+litestar --app-dir=examples/ --app basic:app workers run --queues sample
+Using Litestar app from env: 'basic:app'
+Starting SAQ Workers ──────────────────────────────────────────────────────────────────
+INFO - 2023-10-04 17:39:03,255 - saq - worker - Worker starting: Queue<redis=Redis<ConnectionPool<Connection<host=localhost,port=6397,db=0>>>, name='samples'>
+INFO - 2023-10-04 17:39:06,545 - saq - worker - Worker shutting down
+```

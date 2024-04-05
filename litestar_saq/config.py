@@ -148,6 +148,24 @@ class SAQConfig:
         self.redis = Redis(connection_pool=pool, **self.redis_kwargs)
         return self.redis
 
+    def filter_delete_queues(self, queues: list[str]) -> None:
+        """Remove all the queues except the one passed in.
+
+        Args:
+            queues: The current queues in list.
+
+        Returns:
+            None.
+        """
+        # Remove all queues configs except the ones passed in
+        new_config = [queue_config for queue_config in self.queue_configs if queue_config.name in queues]
+        self.queue_configs = new_config
+        if self.queue_instances is not None:
+            for queue_name in dict(self.queue_instances):
+                if queue_name not in queues:
+                    # Remove all queues instances except the ones passed in
+                    del self.queue_instances[queue_name] # type: ignore  # noqa: PGH003
+
     def get_queues(self) -> TaskQueues:
         """Get the configured SAQ queues.
 
