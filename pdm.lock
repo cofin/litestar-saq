@@ -5,7 +5,7 @@
 groups = ["default", "dev", "docs", "hiredis", "linting", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:7fa98376fc6d4be8f096ed7c6bfa43d4b1aec16e771ceffe9eee6ac6746d3446"
+content_hash = "sha256:83f29b5521f7f3948f8ea47bd35c649d702aa1e95b2126bc23d2900a264fac8c"
 
 [[package]]
 name = "alabaster"
@@ -1446,6 +1446,20 @@ dependencies = [
 files = [
     {file = "pytest-cov-4.1.0.tar.gz", hash = "sha256:3904b13dfbfec47f003b8e77fd5b589cd11904a21ddf1ab38a64f204d6a10ef6"},
     {file = "pytest_cov-4.1.0-py3-none-any.whl", hash = "sha256:6ba70b9e97e69fcc3fb45bfeab2d0a138fb65c4d0d6a41ef33983ad114be8c3a"},
+]
+
+[[package]]
+name = "pytest-databases"
+version = "0.2.3"
+requires_python = ">=3.8"
+summary = "Reusable database fixtures for any and all databases."
+groups = ["test"]
+dependencies = [
+    "pytest",
+]
+files = [
+    {file = "pytest_databases-0.2.3-py3-none-any.whl", hash = "sha256:e271a4a3fb92ac5237edb52a3f42e65f35fea9176ae55482615313153217ed20"},
+    {file = "pytest_databases-0.2.3.tar.gz", hash = "sha256:8db122cbda134c1f1b426e1e2deed0b43d1cf876e2a96708516ded60a8e0c6a7"},
 ]
 
 [[package]]
