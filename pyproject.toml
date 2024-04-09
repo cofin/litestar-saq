@@ -76,7 +76,7 @@ test = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "-ra -q --doctest-glob='*.md'"
+addopts = "-ra -q"
 filterwarnings = ["ignore::DeprecationWarning:pkg_resources", "ignore::DeprecationWarning:xdist.*"]
 minversion = "6.0"
 testpaths = ["tests"]
@@ -100,7 +100,9 @@ show_missing = true
 
 [tool.coverage.run]
 branch = true
+concurrency = ["multiprocessing", "thread"]
 omit = ["tests/*"]
+parallel = true
 
 [tool.black]
 exclude = '''
