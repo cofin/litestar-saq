@@ -52,8 +52,7 @@ jobs:
         run: pdm install
 
       - name: Test
-        run: pdm run pytest -m "" -n auto
-
+        run: pdm run pytest -m "" -ra -q
   build-docs:
     needs:
       - validate
