@@ -64,7 +64,7 @@ def build_cli_app() -> Group:  # noqa: C901
         if debug is not None or verbose is not None:
             app.debug = True
         plugin = get_saq_plugin(app)
-        if queues is not None:
+        if queues:
             queue_list = list(queues)
             limited_start_up(plugin, queue_list)
         show_saq_info(app, workers, plugin)
