@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Collection, Dict, Mapping, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, Collection, Dict, Literal, Mapping, TypeVar, Union, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
+from litestar.utils.module_loader import import_string, module_to_os_path
 from redis.asyncio import ConnectionPool, Redis
 from saq.queue import Queue as SaqQueue
 from saq.types import DumpType as SaqDumpType
 from saq.types import LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
-from litestar_saq._util import import_string, module_to_os_path
 from litestar_saq.base import CronJob, Job, Queue, Worker
 
 if TYPE_CHECKING:
@@ -23,8 +23,8 @@ if TYPE_CHECKING:
     from saq.types import Function
 
 T = TypeVar("T")
-TaskQueue = Queue | SaqQueue
-DumpType = SaqDumpType | Callable[[Dict], bytes]
+TaskQueue = Union[Queue, SaqQueue]
+DumpType = Union[SaqDumpType, Callable[[Dict], bytes]]
 
 
 def serializer(value: Any) -> str:
@@ -40,7 +40,7 @@ def serializer(value: Any) -> str:
 
 
 def _get_static_files() -> Path:
-    return Path(module_to_os_path("saq.web") / "static")
+    return Path(module_to_os_path("saq") / "web" / "static")
 
 
 @dataclass
@@ -80,8 +80,7 @@ class SAQConfig:
 
     Default is set to 1.
     """
-    web_enabled: bool = False
-    """If true, the worker admin UI is launched on worker startup.."""
+
     json_deserializer: LoadType = decode_json
     """This is a Python callable that will
     convert a JSON string to a Python object. By default, this is set to Litestar's
@@ -91,10 +90,16 @@ class SAQConfig:
     By default, Litestar's :attr:`encode_json() <.serialization.encode_json>` is used."""
     static_files: Path = field(default_factory=_get_static_files)
     """Location of the static files to serve for the SAQ UI"""
-    web_path = "/saq"
+    web_enabled: bool = False
+    """If true, the worker admin UI is launched on worker startup.."""
+    web_path: str = "/saq"
     """Base path to serve the SAQ web UI"""
     web_guards: list[Guard] | None = field(default=None)
     """Guards to apply to web endpoints."""
+    web_include_in_schema: bool = True
+    """Include Queue API endpoints in generated OpenAPI schema"""
+    use_server_lifespan: bool = False
+    """Utilize the server lifespan hook to run SAQ."""
 
     def __post_init__(self) -> None:
         if self.redis is not None and self.redis_url is not None:
@@ -115,6 +120,7 @@ class SAQConfig:
             "Job": Job,
             "QueueStats": QueueStats,
             "TaskQueues": TaskQueues,
+            "TaskQueue": TaskQueue,
         }
 
     def provide_queues(self, state: State) -> TaskQueues:
@@ -126,7 +132,7 @@ class SAQConfig:
         Returns:
             a ``TaskQueues`` instance.
         """
-        return cast("TaskQueues", state.get(self.queues_dependency_key))
+        return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
 
     def get_redis(self) -> Redis:
         """Get the configured Redis connection.
@@ -136,11 +142,29 @@ class SAQConfig:
         """
         if self.redis is not None:
             return self.redis
-        pool = ConnectionPool.from_url(
+        pool: ConnectionPool = ConnectionPool.from_url(
             url=cast("str", self.redis_url),
         )
         self.redis = Redis(connection_pool=pool, **self.redis_kwargs)
         return self.redis
+
+    def filter_delete_queues(self, queues: list[str]) -> None:
+        """Remove all the queues except the one passed in.
+
+        Args:
+            queues: The current queues in list.
+
+        Returns:
+            None.
+        """
+        # Remove all queues configs except the ones passed in
+        new_config = [queue_config for queue_config in self.queue_configs if queue_config.name in queues]
+        self.queue_configs = new_config
+        if self.queue_instances is not None:
+            for queue_name in dict(self.queue_instances):
+                if queue_name not in queues:
+                    # Remove all queues instances except the ones passed in
+                    del self.queue_instances[queue_name] # type: ignore  # noqa: PGH003
 
     def get_queues(self) -> TaskQueues:
         """Get the configured SAQ queues.
@@ -188,7 +212,7 @@ class QueueConfig:
     concurrency: int = 10
     """Number of jobs to process concurrently"""
     max_concurrent_ops: int = 15
-    """Maximum concurrent operations. (default 20)
+    """Maximum concurrent operations. (default 15)
             This throttles calls to `enqueue`, `job`, and `abort` to prevent the Queue
             from consuming too many Redis connections."""
     tasks: Collection[ReceivesContext | tuple[str, Function] | str] = field(default_factory=list)
@@ -211,6 +235,9 @@ class QueueConfig:
             abort: how often to check if a job is aborted"""
     dequeue_timeout: float = 0
     """How long it will wait to dequeue"""
+    multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing"
+    """Executes with the multiprocessing or threading backend.
+            Set it threading for workloads that aren't CPU bound."""
     separate_process: bool = True
     """Executes as a separate event loop when True.
             Set it False to execute within the Litestar application."""

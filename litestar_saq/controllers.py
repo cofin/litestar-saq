@@ -23,7 +23,11 @@ async def job_info(queue: TaskQueue, job_id: str) -> Job:
 
 
 @lru_cache(typed=True)
-def build_controller(url_base: str = "/saq", controller_guards: list[Guard] | None = None) -> type[Controller]:  # noqa: C901
+def build_controller(  # noqa: C901
+    url_base: str = "/saq",
+    controller_guards: list[Guard] | None = None,
+    include_in_schema_: bool = True,
+) -> type[Controller]:
     from litestar import Controller, MediaType, get, post
     from litestar.exceptions import NotFoundException
     from litestar.status_codes import HTTP_202_ACCEPTED
@@ -31,6 +35,7 @@ def build_controller(url_base: str = "/saq", controller_guards: list[Guard] | No
     class SAQController(Controller):
         tags = ["SAQ"]
         guards = controller_guards
+        include_in_schema = include_in_schema_
 
         @get(
             operation_id="WorkerQueueList",
@@ -129,6 +134,7 @@ def build_controller(url_base: str = "/saq", controller_guards: list[Guard] | No
         @get(
             [
                 url_base,
+                f"{url_base}/",
                 f"{url_base}/queues/{{queue_id:str}}",
                 f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
             ],

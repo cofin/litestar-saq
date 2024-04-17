@@ -81,7 +81,7 @@ coverage:  											## Run the tests and generate coverage report
 .PHONY: test
 test:  												## Run the tests
 	@echo "=> Running test cases"
-	@$(ENV_PREFIX)pytest tests
+	@$(ENV_PREFIX)pytest -q -ra tests
 	@echo "=> Tests complete"
 
 

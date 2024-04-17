@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
+from litestar.utils.module_loader import import_string
 from saq import Job as SaqJob
 from saq import Worker as SaqWorker
 from saq.job import CronJob as SaqCronJob
 from saq.queue import Queue as SaqQueue
-
-from litestar_saq._util import import_string
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -81,7 +80,7 @@ class Queue(SaqQueue):
         Returns:
             str: Job ID for the specified key
         """
-        return f"{self._namespace}:{self.name}:job:{job_key}"
+        return f"{self._namespace}:job:{self.name}:{job_key}"
 
 
 class Worker(SaqWorker):
@@ -106,8 +105,10 @@ class Worker(SaqWorker):
         timers: PartialTimersDict | None = None,
         dequeue_timeout: float = 0,
         separate_process: bool = True,
+        multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing",
     ) -> None:
         self.separate_process = separate_process
+        self.multiprocessing_mode = multiprocessing_mode
         super().__init__(
             cast("SaqQueue", queue),
             functions,
@@ -126,10 +127,10 @@ class Worker(SaqWorker):
         if not self.separate_process:
             self.SIGNALS = []
             loop = asyncio.get_running_loop()
-            _ = loop.create_task(self.start())
+            _ = loop.create_task(self.start())  # noqa: RUF006
 
     async def on_app_shutdown(self) -> None:
         """Attach the worker to the running event loop."""
         if not self.separate_process:
             loop = asyncio.get_running_loop()
-            _ = loop.create_task(self.stop())
+            _ = loop.create_task(self.stop())  # noqa: RUF006

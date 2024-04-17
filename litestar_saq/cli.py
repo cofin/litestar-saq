@@ -9,10 +9,12 @@ if TYPE_CHECKING:
 
     from litestar_saq.base import Worker
     from litestar_saq.plugin import SAQPlugin
- 
-def build_cli_app() -> Group:
+
+
+def build_cli_app() -> Group:  # noqa: C901
     import asyncio
     import multiprocessing
+    import platform
     from typing import cast
 
     from click import IntRange, group, option
@@ -34,29 +36,45 @@ def build_cli_app() -> Group:
         required=False,
         show_default=True,
     )
+    @option(
+        "--queues",
+        help="List of queue names to process.",
+        type=str,
+        multiple=True,
+        required=False,
+        show_default=False,
+    )
     @option("-v", "--verbose", help="Enable verbose logging.", is_flag=True, default=None, type=bool, required=False)
     @option("-d", "--debug", help="Enable debugging.", is_flag=True, default=None, type=bool, required=False)
     def run_worker(
         app: Litestar,
         workers: int,
+        queues: tuple[str, ...] | None,
         verbose: bool | None,
         debug: bool | None,
     ) -> None:
         """Run the API server."""
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
+
+        if platform.system() == "Darwin":
+            multiprocessing.set_start_method("fork", force=True)
+
         if app.logging_config is not None:
             app.logging_config.configure()
         if debug is not None or verbose is not None:
             app.debug = True
         plugin = get_saq_plugin(app)
+        if queues:
+            queue_list = list(queues)
+            limited_start_up(plugin, queue_list)
         show_saq_info(app, workers, plugin)
         if workers > 1:
             for _ in range(workers - 1):
-                p = multiprocessing.Process(target=run_worker_process, args=(plugin.get_workers(), app.logging_config))
+                p = multiprocessing.Process(target=run_saq_worker, args=(plugin.get_workers(), app.logging_config))
                 p.start()
 
         try:
-            run_worker_process(
+            run_saq_worker(
                 workers=plugin.get_workers(),
                 logging_config=cast("BaseLoggingConfig", app.logging_config),
             )
@@ -64,6 +82,7 @@ def build_cli_app() -> Group:
             loop = asyncio.get_event_loop()
             for worker_instance in plugin.get_workers():
                 loop.run_until_complete(worker_instance.stop())
+        console.print("[yellow]SAQ workers stopped.[/]")
 
     @background_worker_group.command(
         name="status",
@@ -83,10 +102,14 @@ def build_cli_app() -> Group:
         if debug is not None or verbose is not None:
             app.debug = True
         plugin = get_saq_plugin(app)
-        show_saq_info(app, 1, plugin)
+        show_saq_info(app, plugin.config.worker_processes, plugin)
 
     return background_worker_group
 
+def limited_start_up(plugin: SAQPlugin, queues: list[str]) -> None:
+    """Reset the workers and include only the specified queues."""
+    plugin.remove_workers()
+    plugin.config.filter_delete_queues(queues)
 
 def get_saq_plugin(app: Litestar) -> SAQPlugin:
     """Retrieve a SAQ plugin from the Litestar application's plugins.
@@ -127,18 +150,20 @@ def show_saq_info(app: Litestar, workers: int, plugin: SAQPlugin) -> None:  # pr
     console.print(table)
 
 
-def run_worker_process(workers: list[Worker], logging_config: BaseLoggingConfig | None) -> None:
+def run_saq_worker(workers: list[Worker], logging_config: BaseLoggingConfig | None) -> None:
     """Run a worker."""
     import asyncio
 
+    tasks = []
     loop = asyncio.get_event_loop()
     if logging_config is not None:
         logging_config.configure()
     try:
+
         for i, worker_instance in enumerate(workers):
             if worker_instance.separate_process:
                 if i < len(workers) - 1:
-                    loop.create_task(worker_instance.start())
+                    tasks.append(loop.create_task(worker_instance.start()))
                 else:
                     loop.run_until_complete(worker_instance.start())
     except KeyboardInterrupt:

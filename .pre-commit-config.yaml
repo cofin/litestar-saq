@@ -2,12 +2,12 @@ default_language_version:
   python: "3.11"
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v2.4.0
+    rev: v3.2.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: check-ast
       - id: check-case-conflict
@@ -17,7 +17,7 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.1.0"
+    rev: "v0.3.5"
     hooks:
       - id: ruff
         args: ["--fix"]
@@ -27,13 +27,8 @@ repos:
     hooks:
       - id: codespell
         exclude: "pdm.lock"
-  - repo: https://github.com/psf/black
-    rev: 23.10.0
-    hooks:
-      - id: black
-        args: [--config=./pyproject.toml]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v1.6.0"
+    rev: "v1.9.0"
     hooks:
       - id: mypy
         exclude: "docs"
@@ -41,9 +36,7 @@ repos:
           [
             saq,
             pytest,
-            pytest-asyncio,
             pytest-lazy-fixture,
-            time-machine,
             httpx,
             pytest-mock,
             pytest-timeout,
@@ -53,6 +46,6 @@ repos:
             "litestar[cli]",
           ]
   - repo: https://github.com/sphinx-contrib/sphinx-lint
-    rev: "v0.8.1"
+    rev: "v0.9.1"
     hooks:
       - id: sphinx-lint
