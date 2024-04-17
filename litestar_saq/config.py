@@ -142,7 +142,7 @@ class SAQConfig:
         """
         if self.redis is not None:
             return self.redis
-        pool = ConnectionPool.from_url(
+        pool: ConnectionPool = ConnectionPool.from_url(
             url=cast("str", self.redis_url),
         )
         self.redis = Redis(connection_pool=pool, **self.redis_kwargs)
