@@ -26,6 +26,7 @@ async def job_info(queue: TaskQueue, job_id: str) -> Job:
 def build_controller(  # noqa: C901
     url_base: str = "/saq",
     controller_guards: list[Guard] | None = None,
+    include_in_schema_: bool = True,
 ) -> type[Controller]:
     from litestar import Controller, MediaType, get, post
     from litestar.exceptions import NotFoundException
@@ -34,6 +35,7 @@ def build_controller(  # noqa: C901
     class SAQController(Controller):
         tags = ["SAQ"]
         guards = controller_guards
+        include_in_schema = include_in_schema_
 
         @get(
             operation_id="WorkerQueueList",

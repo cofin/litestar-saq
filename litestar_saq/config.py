@@ -92,7 +92,7 @@ class SAQConfig:
     """Location of the static files to serve for the SAQ UI"""
     web_enabled: bool = False
     """If true, the worker admin UI is launched on worker startup.."""
-    web_path = "/saq"
+    web_path: str = "/saq"
     """Base path to serve the SAQ web UI"""
     web_guards: list[Guard] | None = field(default=None)
     """Guards to apply to web endpoints."""
@@ -142,7 +142,7 @@ class SAQConfig:
         """
         if self.redis is not None:
             return self.redis
-        pool = ConnectionPool.from_url(
+        pool: ConnectionPool = ConnectionPool.from_url(
             url=cast("str", self.redis_url),
         )
         self.redis = Redis(connection_pool=pool, **self.redis_kwargs)
