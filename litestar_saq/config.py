@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Collection, Dict, Literal, Mapping, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Callable, Collection, Dict, Literal, Mapping, TypeVar, Union, cast, List
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
@@ -94,7 +94,7 @@ class SAQConfig:
     """If true, the worker admin UI is launched on worker startup.."""
     web_path: str = "/saq"
     """Base path to serve the SAQ web UI"""
-    web_guards: list[Guard] | None = field(default=None)
+    web_guards: List[Guard] | None = field(default=None)  # noqa:  UP006
     """Guards to apply to web endpoints."""
     web_include_in_schema: bool = True
     """Include Queue API endpoints in generated OpenAPI schema"""

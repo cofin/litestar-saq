@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from click import Group
@@ -150,7 +150,7 @@ def show_saq_info(app: Litestar, workers: int, plugin: SAQPlugin) -> None:  # pr
     console.print(table)
 
 
-def run_saq_worker(workers: list[Worker], logging_config: BaseLoggingConfig | None) -> None:
+def run_saq_worker(workers: List[Worker], logging_config: BaseLoggingConfig | None) -> None:  # noqa: UP006
     """Run a worker."""
     import asyncio
 
