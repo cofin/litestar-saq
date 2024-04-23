@@ -67,20 +67,20 @@ class Queue(SaqQueue):
         self._namespace = queue_namespace if queue_namespace is not None else "saq"
         super().__init__(redis, name, cast("SaqDumpType", dump), load, max_concurrent_ops)
 
-    def namespace(self, key: str) -> str:
-        """Make the namespace unique per app."""
-        return f"{self._namespace}:{self.name}:{key}"
+    # def namespace(self, key: str) -> str:
+    #     """Make the namespace unique per app."""
+    #     return f"{self._namespace}:{self.name}:{key}"  # noqa: ERA001
 
-    def job_id(self, job_key: str) -> str:
-        """Job ID.
+    # def job_id(self, job_key: str) -> str:
+    #     """Job ID.
 
-        Args:
-            job_key (str): Sets the job ID for the given key
+    #     Args:
+    #         job_key (str): Sets the job ID for the given key
 
-        Returns:
-            str: Job ID for the specified key
-        """
-        return f"{self._namespace}:job:{self.name}:{job_key}"
+    #     Returns:
+    #         str: Job ID for the specified key
+    #     """
+    #     return f"{self._namespace}:job:{self.name}:{job_key}"  # noqa: ERA001
 
 
 class Worker(SaqWorker):
