@@ -45,3 +45,23 @@ Starting SAQ Workers ───────────────────�
 INFO - 2023-10-04 17:39:03,255 - saq - worker - Worker starting: Queue<redis=Redis<ConnectionPool<Connection<host=localhost,port=6397,db=0>>>, name='samples'>
 INFO - 2023-10-04 17:39:06,545 - saq - worker - Worker shutting down
 ```
+
+If you are starting the process for only specific queues and still want to read from the other queues or enqueue a task into another queue that was not initialized in your worker or is found somewhere else, you can do so like here
+
+```
+import os
+from saq import Queue
+
+
+def get_queue_directly(queue_name: str, redis_url: str) -> Queue:
+    return Queue.from_url(redis_url, name=queue_name)
+
+redis_url = os.getenv("REDIS_URL")
+queue = get_queue_directly("queue-in-other-process", redis_url)
+# Get queue info
+info = await queue.info(jobs=True)
+# Enqueue new task
+queue.enqueue(
+    ....
+)
+```
