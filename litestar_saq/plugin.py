@@ -44,7 +44,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         from litestar_saq.cli import build_cli_app
 
         cli.add_command(build_cli_app())
-        return super().on_cli_init(cli)
+        return super().on_cli_init(cli)  # type: ignore[safe-super]
 
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
         """Configure application for use with SQLAlchemy.
@@ -77,7 +77,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                     include_in_schema=False,
                 ),
             )
-            app_config.route_handlers.append(build_controller(self._config.web_path, self._config.web_guards, self._config.web_include_in_schema))  # type: ignore[arg-type]
+            app_config.route_handlers.append(
+                build_controller(self._config.web_path, self._config.web_guards, self._config.web_include_in_schema),  # type: ignore[arg-type]
+            )
         app_config.on_startup.append(self._config.update_app_state)
         app_config.signature_namespace.update(self._config.signature_namespace)
         workers = self.get_workers()
@@ -112,7 +114,6 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
 
     def remove_workers(self) -> None:
         self._worker_instances = None
-
 
     def get_queues(self) -> TaskQueues:
         return self._config.get_queues()

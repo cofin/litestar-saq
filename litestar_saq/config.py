@@ -8,7 +8,7 @@ from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
 from litestar.utils.module_loader import import_string, module_to_os_path
 from redis.asyncio import ConnectionPool, Redis
-from saq.queue import Queue as SaqQueue
+from saq.queue.redis import RedisQueue as SaqQueue
 from saq.types import DumpType as SaqDumpType
 from saq.types import LoadType, PartialTimersDict, QueueInfo, QueueStats, ReceivesContext
 
@@ -164,7 +164,7 @@ class SAQConfig:
             for queue_name in dict(self.queue_instances):
                 if queue_name not in queues:
                     # Remove all queues instances except the ones passed in
-                    del self.queue_instances[queue_name] # type: ignore  # noqa: PGH003
+                    del self.queue_instances[queue_name]  # type: ignore  # noqa: PGH003
 
     def get_queues(self) -> TaskQueues:
         """Get the configured SAQ queues.

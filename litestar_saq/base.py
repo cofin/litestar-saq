@@ -8,7 +8,7 @@ from litestar.utils.module_loader import import_string
 from saq import Job as SaqJob
 from saq import Worker as SaqWorker
 from saq.job import CronJob as SaqCronJob
-from saq.queue import Queue as SaqQueue
+from saq.queue.redis import RedisQueue as SaqQueue
 
 if TYPE_CHECKING:
     from collections.abc import Collection
