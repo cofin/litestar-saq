@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 async def job_info(queue: TaskQueue, job_id: str) -> Job:
-    job = await queue._get_job_by_id(job_id)  # noqa: SLF001
+    job = await queue.job(job_id)
     if not job:
         msg = f"Could not find job ID {job_id}"
         raise NotFoundException(msg)
@@ -65,7 +65,7 @@ def build_controller(  # noqa: C901
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
                 raise NotFoundException(msg)
-            return {"queue": await queue.info()}
+            return {"queue": await queue.info(jobs=True)}
 
         @get(
             operation_id="WorkerJobDetail",
@@ -134,7 +134,6 @@ def build_controller(  # noqa: C901
         @get(
             [
                 url_base,
-                f"{url_base}/",
                 f"{url_base}/queues/{{queue_id:str}}",
                 f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
             ],

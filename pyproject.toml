@@ -178,8 +178,6 @@ lint.ignore = [
   "PLW2901", # pylint - for loop variable overwritten by assignment target
   "RUF012",  # Ruff-specific rule - annotated with classvar
   "ANN401",
-  "ANN102",
-  "ANN101",
   "FBT",
   "PLR0913", # too many arguments
   "PT",
@@ -228,7 +226,7 @@ classmethod-decorators = [
   "S",
   "S101",
   "SIM",
-  "TCH",
+  "TC",
   "TRY",
   "UP006",
   "SLF001",
@@ -257,7 +255,7 @@ module = "tests.*"
 
 [tool.codespell]
 ignore-words-list = "selectin"
-skip = 'pdm.lock'
+skip = 'pdm.lock,pyproject.toml'
 
 [tool.git-cliff.changelog]
 body = """
