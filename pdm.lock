@@ -413,7 +413,7 @@ files = [
 
 [[package]]
 name = "coverage"
-version = "7.6.1"
+version = "7.6.1" 
 requires_python = ">=3.8"
 summary = "Code coverage measurement for Python"
 groups = ["test"]
