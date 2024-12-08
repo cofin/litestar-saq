@@ -8,7 +8,7 @@ from litestar.utils.module_loader import import_string
 from saq import Job as SaqJob
 from saq import Worker as SaqWorker
 from saq.job import CronJob as SaqCronJob
-from saq.queue import Queue as SaqQueue
+from saq.queue.redis import RedisQueue as SaqQueue
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -33,7 +33,7 @@ class CronJob(SaqCronJob):
     meta: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        self.function = self._get_or_import_function(self.function)
+        self.function = self._get_or_import_function(self.function)  # pyright: ignore[reportIncompatibleMethodOverride]
 
     @staticmethod
     def _get_or_import_function(function_or_import_string: str | Function) -> Function:
@@ -98,10 +98,10 @@ class Worker(SaqWorker):
         *,
         concurrency: int = 10,
         cron_jobs: Collection[CronJob] | None = None,
-        startup: ReceivesContext | None = None,
-        shutdown: ReceivesContext | None = None,
-        before_process: ReceivesContext | None = None,
-        after_process: ReceivesContext | None = None,
+        startup: ReceivesContext | Collection[ReceivesContext] | None = None,
+        shutdown: ReceivesContext | Collection[ReceivesContext] | None = None,
+        before_process: ReceivesContext | Collection[ReceivesContext] | None = None,
+        after_process: ReceivesContext | Collection[ReceivesContext] | None = None,
         timers: PartialTimersDict | None = None,
         dequeue_timeout: float = 0,
         separate_process: bool = True,

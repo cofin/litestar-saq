@@ -15,14 +15,14 @@ classifiers = [
   "Topic :: Software Development",
   "Typing :: Typed",
 ]
-dependencies = ["litestar>=2.0.1", "saq>=0.12.0"]
+dependencies = ["litestar>=2.0.1", "saq>=0.14.1"]
 description = "Litestar integration for SAQ"
 keywords = ["litestar", "saq"]
 license = { text = "MIT" }
 name = "litestar-saq"
 readme = "README.md"
 requires-python = ">=3.8"
-version = "0.1.22"
+version = "0.3.0"
 
 [project.optional-dependencies]
 hiredis = ["hiredis"]
@@ -62,7 +62,14 @@ docs = [
   "blacken-docs>=1.16.0",
   "sphinx-design>=0.5.0",
 ]
-linting = ["pre-commit>=3.4.0", "mypy>=1.5.1", "ruff>=0.0.287", "types-click", "types-redis", "types-croniter"]
+linting = [
+  "pre-commit>=3.4.0",
+  "mypy>=1.5.1",
+  "ruff>=0.0.287",
+  "types-click",
+  "types-redis",
+  "types-croniter",
+]
 test = [
   "pytest>=7.4.1",
   "pytest-mock>=3.11.1",
@@ -77,7 +84,10 @@ test = [
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"
-filterwarnings = ["ignore::DeprecationWarning:pkg_resources", "ignore::DeprecationWarning:xdist.*"]
+filterwarnings = [
+  "ignore::DeprecationWarning:pkg_resources",
+  "ignore::DeprecationWarning:xdist.*",
+]
 minversion = "6.0"
 testpaths = ["tests"]
 
@@ -168,8 +178,6 @@ lint.ignore = [
   "PLW2901", # pylint - for loop variable overwritten by assignment target
   "RUF012",  # Ruff-specific rule - annotated with classvar
   "ANN401",
-  "ANN102",
-  "ANN101",
   "FBT",
   "PLR0913", # too many arguments
   "PT",
@@ -218,7 +226,7 @@ classmethod-decorators = [
   "S",
   "S101",
   "SIM",
-  "TCH",
+  "TC",
   "TRY",
   "UP006",
   "SLF001",
@@ -247,7 +255,7 @@ module = "tests.*"
 
 [tool.codespell]
 ignore-words-list = "selectin"
-skip = 'pdm.lock'
+skip = 'pdm.lock,pyproject.toml'
 
 [tool.git-cliff.changelog]
 body = """
