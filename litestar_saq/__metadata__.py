@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import importlib.metadata
 
-__all__ = ["__version__", "__project__"]
+__all__ = ["__project__", "__version__"]
 
 __version__ = importlib.metadata.version("litestar_saq")
 """Version of the project."""

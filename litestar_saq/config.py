@@ -219,13 +219,13 @@ class QueueConfig:
     """Allowed list of functions to execute in this queue"""
     scheduled_tasks: Collection[CronJob] = field(default_factory=list)
     """Scheduled cron jobs to execute in this queue."""
-    startup: ReceivesContext | None = None
+    startup: ReceivesContext | str | Collection[ReceivesContext | str] | None = None
     """Async callable to call on startup"""
-    shutdown: ReceivesContext | None = None
+    shutdown: ReceivesContext | str | Collection[ReceivesContext | str] | None = None
     """Async callable to call on shutdown"""
-    before_process: ReceivesContext | None = None
+    before_process: ReceivesContext | str | Collection[ReceivesContext | str] | None = None
     """Async callable to call before a job processes"""
-    after_process: ReceivesContext | None = None
+    after_process: ReceivesContext | str | Collection[ReceivesContext | str] | None = None
     """Async callable to call after a job processes"""
     timers: PartialTimersDict | None = None
     """Dict with various timer overrides in seconds
@@ -244,6 +244,18 @@ class QueueConfig:
 
     def __post_init__(self) -> None:
         self.tasks = [self._get_or_import_task(task) for task in self.tasks]
+        if self.startup is not None and not isinstance(self.startup, Collection):
+            self.startup = [self.startup]
+        if self.shutdown is not None and not isinstance(self.shutdown, Collection):
+            self.shutdown = [self.shutdown]
+        if self.before_process is not None and not isinstance(self.before_process, Collection):
+            self.before_process = [self.before_process]
+        if self.after_process is not None and not isinstance(self.after_process, Collection):
+            self.after_process = [self.after_process]
+        self.startup = [self._get_or_import_task(task) for task in self.startup or []]
+        self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]
+        self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]
+        self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]
 
     @staticmethod
     def _get_or_import_task(task_or_import_string: str | tuple[str, Function] | ReceivesContext) -> ReceivesContext:
