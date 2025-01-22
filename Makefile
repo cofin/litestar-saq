@@ -135,7 +135,7 @@ coverage:                                          ## Run tests with coverage re
 .PHONY: mypy
 mypy:                                              ## Run mypy
 	@echo "${INFO} Running mypy... 🔍"
-	@uv run dmypy run
+	@uv run dmypy run litestar_saq/
 	@echo "${OK} Mypy checks passed ✨"
 
 .PHONY: pyright

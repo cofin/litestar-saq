@@ -18,9 +18,9 @@ if TYPE_CHECKING:
     from click import Group
     from litestar import Litestar
     from litestar.config.app import AppConfig
+    from saq.queue.base import Queue
     from saq.types import Function
 
-    from litestar_saq.base import Queue
     from litestar_saq.config import SAQConfig, TaskQueues
 
 T = TypeVar("T")
