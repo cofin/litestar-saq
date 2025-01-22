@@ -1,8 +1,5 @@
 # Litestar SAQ
 
-> [!IMPORTANT]
-> This plugin currently contains minimal features and is a work-in-progress
-
 ## Installation
 
 ```shell
@@ -20,7 +17,7 @@ from litestar import Litestar
 
 from litestar_saq import QueueConfig, SAQConfig, SAQPlugin
 
-saq = SAQPlugin(config=SAQConfig(redis_url="redis://localhost:6397/0", queue_configs=[QueueConfig(name="samples")]))
+saq = SAQPlugin(config=SAQConfig(dsn="redis://localhost:6397/0", queue_configs=[QueueConfig(name="samples")]))
 app = Litestar(plugins=[saq])
 
 
@@ -48,7 +45,7 @@ INFO - 2023-10-04 17:39:06,545 - saq - worker - Worker shutting down
 
 If you are starting the process for only specific queues and still want to read from the other queues or enqueue a task into another queue that was not initialized in your worker or is found somewhere else, you can do so like here
 
-```
+```python
 import os
 from saq import Queue
 
