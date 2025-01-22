@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING
 from litestar import Controller, Litestar, get
 
 from examples import tasks
-from litestar_saq import QueueConfig, SAQConfig, SAQPlugin
-from litestar_saq.base import CronJob
+from litestar_saq import CronJob, QueueConfig, SAQConfig, SAQPlugin
 
 if TYPE_CHECKING:
     from saq.types import QueueInfo
@@ -24,7 +23,7 @@ class SampleController(Controller):
 
 saq = SAQPlugin(
     config=SAQConfig(
-        redis_url="redis://localhost:6397/0",
+        dsn="redis://localhost:6397/0",
         web_enabled=True,
         use_server_lifespan=True,
         queue_configs=[

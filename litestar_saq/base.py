@@ -8,16 +8,12 @@ from litestar.utils.module_loader import import_string
 from saq import Job as SaqJob
 from saq import Worker as SaqWorker
 from saq.job import CronJob as SaqCronJob
-from saq.queue.redis import RedisQueue as SaqQueue
 
 if TYPE_CHECKING:
     from collections.abc import Collection
 
-    from redis.asyncio.client import Redis
-    from saq.types import DumpType as SaqDumpType
-    from saq.types import Function, LoadType, PartialTimersDict, ReceivesContext
-
-    from litestar_saq.config import DumpType
+    from saq.queue.base import Queue
+    from saq.types import Function, PartialTimersDict, ReceivesContext
 
 
 @dataclass
@@ -40,47 +36,6 @@ class CronJob(SaqCronJob):
         if isinstance(function_or_import_string, str):
             return cast("Function", import_string(function_or_import_string))
         return function_or_import_string
-
-
-class Queue(SaqQueue):
-    """[SAQ Queue](https://github.com/tobymao/saq/blob/master/saq/queue.py).
-
-    Configures `msgspec` for msgpack serialization/deserialization if not otherwise configured.
-
-    Parameters
-    ----------
-    *args : Any
-        Passed through to `saq.Queue.__init__()`
-    **kwargs : Any
-        Passed through to `saq.Queue.__init__()`
-    """
-
-    def __init__(
-        self,
-        redis: Redis[bytes],
-        name: str = "default",
-        dump: DumpType | None = None,
-        load: LoadType | None = None,
-        max_concurrent_ops: int = 20,
-        queue_namespace: str | None = None,
-    ) -> None:
-        self._namespace = queue_namespace if queue_namespace is not None else "saq"
-        super().__init__(redis, name, cast("SaqDumpType", dump), load, max_concurrent_ops)
-
-    def namespace(self, key: str) -> str:
-        """Make the namespace unique per app."""
-        return f"{self._namespace}:{self.name}:{key}"
-
-    def job_id(self, job_key: str) -> str:
-        """Job ID.
-
-        Args:
-            job_key (str): Sets the job ID for the given key
-
-        Returns:
-            str: Job ID for the specified key
-        """
-        return f"{self._namespace}:job:{self.name}:{job_key}"
 
 
 class Worker(SaqWorker):
@@ -110,7 +65,7 @@ class Worker(SaqWorker):
         self.separate_process = separate_process
         self.multiprocessing_mode = multiprocessing_mode
         super().__init__(
-            cast("SaqQueue", queue),
+            queue,
             functions,
             concurrency=concurrency,
             cron_jobs=cron_jobs,

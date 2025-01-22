@@ -1,4 +1,4 @@
-name: Latest Release
+name: PublishLatest Release
 
 on:
   release:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-release:
+  publish-python-release:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -15,19 +15,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
-      - uses: pdm-project/setup-pdm@v3
-        name: Set up PDM
-        with:
-          python-version: "3.11"
-          allow-python-prereleases: true
-          cache: true
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Build package
-        run: pdm build
+        run: uv build
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from .base import CronJob, Job, Queue, Worker
-from .config import QueueConfig, SAQConfig, TaskQueues
-from .plugin import SAQPlugin
+from litestar_saq.base import CronJob, Job, Worker
+from litestar_saq.config import PostgresQueueOptions, QueueConfig, RedisQueueOptions, SAQConfig, TaskQueues
+from litestar_saq.plugin import SAQPlugin
 
 __all__ = (
     "CronJob",
     "Job",
-    "Queue",
+    "PostgresQueueOptions",
     "QueueConfig",
+    "RedisQueueOptions",
     "SAQConfig",
     "SAQPlugin",
     "TaskQueues",

@@ -6,22 +6,25 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Natural Language :: English",
   "Operating System :: OS Independent",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python",
   "Topic :: Software Development",
   "Typing :: Typed",
 ]
-dependencies = ["litestar>=2.0.1", "saq>=0.14.1"]
+dependencies = [
+    "litestar>=2.0.1",
+ "saq>=0.14.1",
+]
 description = "Litestar integration for SAQ"
 keywords = ["litestar", "saq"]
 license = { text = "MIT" }
 name = "litestar-saq"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 version = "0.3.0"
 
 [project.optional-dependencies]
@@ -39,57 +42,81 @@ Source = "https://github.com/cofin/litestar-saq"
 build-backend = "hatchling.build"
 requires = ["hatchling"]
 
-[tool.pdm]
-ignore_package_warnings = [
-  "alabaster",
-  "sphinxcontrib-*",
-  "sphinx-*",
-  "sphinx",
-  "pre-commit",
-  "pydata-sphinx-*",
-  "slotscheck",
-]
-
-[tool.pdm.dev-dependencies]
-dev = ["anyio"]
-docs = [
-  "sphinx>=7.1.2",
-  "sphinx-autobuild>=2021.3.14",
-  "sphinx-copybutton>=0.5.2",
-  "shibuya>=2023.9.3",
-  "sphinx-click>=5.0.1",
-  "sphinx-toolbox>=3.5.0",
-  "blacken-docs>=1.16.0",
-  "sphinx-design>=0.5.0",
-]
+[dependency-groups]
+dev = [{include-group = "build"}, {include-group = "linting"}, {include-group = "test"}]
+build = ["bump-my-version","psycopg[pool,binary]"]
 linting = [
-  "pre-commit>=3.4.0",
-  "mypy>=1.5.1",
-  "ruff>=0.0.287",
+  "pre-commit",
+  "mypy",
+  "ruff",
   "types-click",
   "types-redis",
   "types-croniter",
+  "pyright",
+  "slotscheck",
 ]
 test = [
-  "pytest>=7.4.1",
-  "pytest-mock>=3.11.1",
-  "httpx>=0.24.1",
+  "pytest",
+  "pytest-mock",
+  "httpx",
   "pytest-cov",
   "coverage",
-  "pytest-databases>=0.2.3",
-  "pytest-sugar>=1.0.0",
-  "anyio>=4.3.0",
-  "litestar[jinja,redis,standard]>=2.8.2",
+  "pytest-databases",
+  "pytest-sugar",
+  "pytest-asyncio",
+  "pytest-xdist",
+  "anyio",
+  "litestar[jinja,redis,standard]",
 ]
 
+
+[tool.bumpversion]
+allow_dirty = true
+commit = false
+commit_args = "--no-verify"
+current_version = "0.3.0"
+ignore_missing_files = false
+ignore_missing_version = false
+message = "chore(release): bump to `v{new_version}`"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+regex = false
+replace = "{new_version}"
+search = "{current_version}"
+serialize = ["{major}.{minor}.{patch}"]
+sign_tags = false
+tag = false
+tag_message = "chore(release): `v{new_version}`"
+tag_name = "v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+replace = 'version = "{new_version}"'
+search = 'version = "{current_version}"'
+
+
+[[tool.bumpversion.files]]
+filename = "uv.lock"
+replace = """
+name = "litestar-saq"
+version = "{new_version}"
+"""
+search = """
+name = "litestar-saq"
+version = "{current_version}"
+"""
+
 [tool.pytest.ini_options]
-addopts = "-ra -q"
+addopts = ["-q", "-ra"]
 filterwarnings = [
   "ignore::DeprecationWarning:pkg_resources",
   "ignore::DeprecationWarning:xdist.*",
 ]
 minversion = "6.0"
 testpaths = ["tests"]
+tmp_path_retention_policy = "failed"
+tmp_path_retention_count = 3
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
 
 [tool.coverage.report]
 exclude_lines = [
@@ -108,28 +135,12 @@ exclude_lines = [
 omit = ["*/tests/*"]
 show_missing = true
 
+
 [tool.coverage.run]
 branch = true
-concurrency = ["multiprocessing", "thread"]
+concurrency = ["multiprocessing" ]
 omit = ["tests/*"]
 parallel = true
-
-[tool.black]
-exclude = '''
-/(
-    \.git
-  | \.mypy_cache
-  | \.tox
-  | venv
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
-include = '\.pyi?$'
-line-length = 120
 
 [tool.slotscheck]
 strict-imports = false
@@ -184,12 +195,15 @@ lint.ignore = [
   "TD",
   "ARG002",  # ignore for now; investigate
   "PERF203", # ignore for now; investigate
+    "ISC001",
+  "COM812",
 ]
 lint.select = ["ALL"]
 # Allow unused variables when underscore-prefixed.
 lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 src = ["litestar_saq", "tests"]
-target-version = "py38"
+target-version = "py39"
+unsafe-fixes = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -232,6 +246,7 @@ classmethod-decorators = [
   "SLF001",
   "ERA001",
 ]
+"tools/*.py" = [ "PLR0911"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["litestar_saq", "tests"]
@@ -253,69 +268,18 @@ disable_error_code = "attr-defined"
 disallow_untyped_decorators = false
 module = "tests.*"
 
+[tool.pyright]
+venvPath = "."
+disableBytesTypePromotions = true
+exclude = [
+  "docs",
+  "tests/helpers.py",
+]
+include = ["litestar_saq"]
+pythonVersion = "3.9"
+strict = ["litestar_saq/**/*"]
+venv = ".venv"
+
 [tool.codespell]
 ignore-words-list = "selectin"
-skip = 'pdm.lock,pyproject.toml'
-
-[tool.git-cliff.changelog]
-body = """
-{% if version %}\
-    `Release [v{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }} <https://github.com/cofin/litestar-saq/releases/tag/v{{ version | trim_start_matches(pat="v") }}>`_
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    * `See All commits in v{{ version | trim_start_matches(pat="v") }} <https://github.com/cofin/litestar-saq/commits/v{{ version | trim_start_matches(pat="v") }}>`_
-{% else %}\
-    [unreleased]
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-{% endif %}\
-{% if previous %}\
-    {% if previous.commit_id %}
-        `{{ previous.commit_id | truncate(length=7, end="") }} <https://github.com/cofin/litestar-saq/commit/{{ previous.commit_id }}>`_ ... \
-            `{{ commit_id | truncate(length=7, end="") }} <https://github.com/cofin/litestar-saq/commit/{{ commit_id }}>`_ \
-            | `See diff for {{ version | trim_start_matches(pat="v") }} <https://github.com/cofin/litestar-saq/compare/{{ previous.commit_id }}...{{ commit_id }}>`_
-    {% endif %}\
-{% endif %}\
-{% for group, commits in commits | group_by(attribute="group") %}
-    {{ group | upper_first }}
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    {% for commit in commits %}
-        * (`{{ commit.id | truncate(length=7, end="") }} <https://github.com/cofin/litestar-saq/commit/{{ commit.id }}>`_) {% if commit.breaking %}[**breaking**] {% endif %} - {{ commit.message | upper_first }} ({{ commit.author.name  }})\
-          {% for footer in commit.footers -%}
-            , {{ footer.token }}{{ footer.separator }}{{ footer.value }}\
-          {% endfor %}\
-    {% endfor %}
-{% endfor %}\n
-"""
-footer = """
-Litestar SAQ Changelog
-"""
-header = """
-=========
-Changelog
-=========\n
-All commits to this project will be documented in this file.\n
-"""
-trim = true
-
-[tool.git-cliff.git]
-commit_parsers = [
-  { message = "^feat", group = "Features" },
-  { message = "^fix", group = "Bug Fixes" },
-  { message = "^doc", group = "Documentation" },
-  { message = "^perf", group = "Performance" },
-  { message = "^refactor", group = "Refactor" },
-  { message = "^style", group = "Styling" },
-  { message = "^test", group = "Testing" },
-  { message = "^chore\\(release\\): prepare for", skip = true },
-  { message = "^chore", group = "Miscellaneous Tasks" },
-  { body = ".*security", group = "Security" },
-]
-conventional_commits = true
-filter_commits = false
-filter_unconventional = true
-ignore_tags = ""
-protect_breaking_commits = false
-skip_tags = "v0.1.0-beta.1"
-sort_commits = "oldest"
-split_commits = false
-tag_pattern = "v[0-9]*"
-topo_order = false
+skip = 'uv.lock,pyproject.toml'
