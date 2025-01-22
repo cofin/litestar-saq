@@ -46,7 +46,7 @@ def build_cli_app() -> Group:  # noqa: C901
     )
     @option("-v", "--verbose", help="Enable verbose logging.", is_flag=True, default=None, type=bool, required=False)
     @option("-d", "--debug", help="Enable debugging.", is_flag=True, default=None, type=bool, required=False)
-    def run_worker(
+    def run_worker(  # pyright: ignore[reportUnusedFunction]
         app: Litestar,
         workers: int,
         queues: tuple[str, ...] | None,
@@ -90,7 +90,7 @@ def build_cli_app() -> Group:  # noqa: C901
     )
     @option("-v", "--verbose", help="Enable verbose logging.", is_flag=True, default=None, type=bool, required=False)
     @option("-d", "--debug", help="Enable debugging.", is_flag=True, default=None, type=bool, required=False)
-    def worker_status(
+    def worker_status(  # pyright: ignore[reportUnusedFunction]
         app: Litestar,
         verbose: bool | None,
         debug: bool | None,
@@ -106,10 +106,12 @@ def build_cli_app() -> Group:  # noqa: C901
 
     return background_worker_group
 
+
 def limited_start_up(plugin: SAQPlugin, queues: list[str]) -> None:
     """Reset the workers and include only the specified queues."""
     plugin.remove_workers()
     plugin.config.filter_delete_queues(queues)
+
 
 def get_saq_plugin(app: Litestar) -> SAQPlugin:
     """Retrieve a SAQ plugin from the Litestar application's plugins.
@@ -134,7 +136,7 @@ def get_saq_plugin(app: Litestar) -> SAQPlugin:
 def show_saq_info(app: Litestar, workers: int, plugin: SAQPlugin) -> None:  # pragma: no cover
     """Display basic information about the application and its configuration."""
 
-    from litestar.cli._utils import _format_is_enabled, console
+    from litestar.cli._utils import _format_is_enabled, console  # pyright: ignore[reportPrivateUsage]
     from rich.table import Table
     from saq import __version__ as saq_version
 
@@ -145,7 +147,7 @@ def show_saq_info(app: Litestar, workers: int, plugin: SAQPlugin) -> None:  # pr
     table.add_row("SAQ version", saq_version)
     table.add_row("Debug mode", _format_is_enabled(app.debug))
     table.add_row("Number of Processes", str(workers))
-    table.add_row("Queues", str(len(plugin._config.queue_configs)))  # noqa: SLF001
+    table.add_row("Queues", str(len(plugin.config.queue_configs)))
 
     console.print(table)
 
@@ -159,11 +161,10 @@ def run_saq_worker(workers: list[Worker], logging_config: BaseLoggingConfig | No
     if logging_config is not None:
         logging_config.configure()
     try:
-
         for i, worker_instance in enumerate(workers):
             if worker_instance.separate_process:
                 if i < len(workers) - 1:
-                    tasks.append(loop.create_task(worker_instance.start()))
+                    tasks.append(loop.create_task(worker_instance.start()))  # pyright: ignore[reportUnknownMemberType]
                 else:
                     loop.run_until_complete(worker_instance.start())
     except KeyboardInterrupt:

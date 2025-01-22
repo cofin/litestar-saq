@@ -3,10 +3,11 @@ from __future__ import annotations
 import signal
 import sys
 import time
+from collections.abc import Collection, Iterator
 from contextlib import contextmanager
 from importlib.util import find_spec
 from multiprocessing import Process
-from typing import TYPE_CHECKING, Any, Collection, Iterator, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from litestar.plugins import CLIPlugin, InitPluginProtocol
 from saq.types import ReceivesContext
@@ -62,7 +63,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         """
 
         from litestar.di import Provide
-        from litestar.static_files import create_static_files_router
+        from litestar.static_files import create_static_files_router  # pyright: ignore[reportUnknownVariableType]
 
         from litestar_saq.controllers import build_controller
 

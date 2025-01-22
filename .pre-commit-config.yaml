@@ -2,7 +2,7 @@ default_language_version:
   python: "3"
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v3.6.0
+    rev: v4.0.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
@@ -17,34 +17,22 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.8.2"
+    rev: "v0.9.2"
     hooks:
-      - id: ruff
-        args: ["--fix"]
-        exclude: "docs"
+      # Run the linter.
+    - id: ruff
+      types_or: [ python, pyi ]
+      args: [ --fix ]
+    # Run the formatter.
+    - id: ruff-format
+      types_or: [ python, pyi ]
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.3.0
+    rev: v2.4.0
     hooks:
       - id: codespell
-        args: ["--skip", "pdm.lock,pyproject.toml"]
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v1.13.0"
-    hooks:
-      - id: mypy
-        exclude: "docs"
+        exclude: "uv.lock|package.json|package-lock.json"
         additional_dependencies:
-          [
-            saq,
-            pytest,
-            pytest-lazy-fixture,
-            httpx,
-            pytest-mock,
-            pytest-timeout,
-            msgspec,
-            types-click,
-            types-redis,
-            "litestar[cli]",
-          ]
+          - tomli
   - repo: https://github.com/sphinx-contrib/sphinx-lint
     rev: "v1.0.0"
     hooks:
