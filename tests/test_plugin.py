@@ -26,7 +26,7 @@ def test_on_cli_init(cli_group: Group) -> None:
     plugin.on_cli_init(cli_group)
 
     # Assert
-    cli_group.add_command.assert_called_once()
+    cli_group.add_command.assert_called_once()  # pyright: ignore[reportFunctionMemberAccess]
 
 
 # Test get_queues method

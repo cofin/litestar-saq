@@ -109,7 +109,7 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    def provide_queues(self, state: State) -> TaskQueues:
+    async def provide_queues(self, state: State) -> TaskQueues:
         """Provide the configured job queues.
 
         Args:
@@ -118,6 +118,9 @@ class SAQConfig:
         Returns:
             a ``TaskQueues`` instance.
         """
+        if self._startup_tasks:
+            await asyncio.gather(*self._startup_tasks)
+            self._startup_tasks = []
         return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
 
     def filter_delete_queues(self, queues: list[str]) -> None:
