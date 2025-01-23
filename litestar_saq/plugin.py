@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import signal
 import sys
 import time
@@ -31,7 +32,7 @@ STRUCTLOG_INSTALLED = find_spec("structlog") is not None
 class SAQPlugin(InitPluginProtocol, CLIPlugin):
     """SAQ plugin."""
 
-    __slots__ = ("_config", "_worker_instances")
+    __slots__ = ("_config", "_provider_queues", "_worker_instances")
 
     WORKER_SHUTDOWN_TIMEOUT = 5.0  # seconds
     WORKER_JOIN_TIMEOUT = 1.0  # seconds
@@ -44,6 +45,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         """
         self._config = config
         self._worker_instances: list[Worker] | None = None
+        self._provider_queues: TaskQueues | None = None
 
     @property
     def config(self) -> SAQConfig:
@@ -68,7 +70,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         from litestar_saq.controllers import build_controller
 
         app_config.dependencies.update(
-            {self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues)}
+            {self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues, sync_to_thread=False)}
         )
         if self._config.web_enabled:
             app_config.route_handlers.append(
@@ -84,21 +86,32 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             app_config.route_handlers.append(
                 build_controller(self._config.web_path, self._config.web_guards, self._config.web_include_in_schema),  # type: ignore[arg-type]
             )
-        app_config.on_startup.append(self._config.update_app_state)
         app_config.signature_namespace.update(self._config.signature_namespace)
+        app_config.on_startup.append(self.on_app_startup)
+        app_config.on_startup.append(self._config.update_app_state)
+        app_config.on_shutdown.append(self.remove_workers)
+
         workers = self.get_workers()
         for worker in workers:
-            if not worker.separate_process:
-                app_config.on_startup.append(worker.on_app_startup)
-                app_config.on_shutdown.append(worker.on_app_shutdown)
+            app_config.on_startup.append(worker.on_app_startup)
+            app_config.on_shutdown.append(worker.on_app_shutdown)
         return app_config
+
+    async def on_app_startup(self) -> None:
+        """Startup the connection used for the dependency injections."""
+        if self._config._provider_queues is not None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+            await asyncio.gather(*[q.connect() for q in self.config._provider_queues.values()])  # type: ignore[union-attr] # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
+
+    async def on_app_shutdown(self) -> None:
+        """Attach the worker to the running event loop."""
+        if self._config._provider_queues is not None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+            await asyncio.gather(*[q.disconnect() for q in self.config._provider_queues.values()])  # type: ignore[union-attr]  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
 
     def get_workers(self) -> list[Worker]:
         """Return workers"""
         if self._worker_instances is not None:
             return self._worker_instances
-        self._worker_instances = []
-        self._worker_instances.extend(
+        self._worker_instances = [
             Worker(
                 queue=self.get_queue(queue_config.name),
                 functions=cast("Collection[Function]", queue_config.tasks),
@@ -113,7 +126,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 separate_process=queue_config.separate_process,
             )
             for queue_config in self._config.queue_configs
-        )
+        ]
         return self._worker_instances
 
     def remove_workers(self) -> None:

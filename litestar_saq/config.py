@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +14,7 @@ from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, Receives
 from litestar_saq.base import CronJob, Job, Worker
 
 if TYPE_CHECKING:
+    import asyncio
     from typing import Any
 
     from litestar import Litestar
@@ -92,6 +92,7 @@ class SAQConfig:
     """Include Queue API endpoints in generated OpenAPI schema"""
     use_server_lifespan: bool = False
     """Utilize the server lifespan hook to run SAQ."""
+    _provider_queues: Mapping[str, Queue] | None = field(default=None, init=False, repr=False, compare=False)
 
     @property
     def signature_namespace(self) -> dict[str, Any]:
@@ -109,7 +110,7 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    async def provide_queues(self, state: State) -> TaskQueues:
+    def provide_queues(self, state: State) -> TaskQueues:
         """Provide the configured job queues.
 
         Args:
@@ -118,9 +119,7 @@ class SAQConfig:
         Returns:
             a ``TaskQueues`` instance.
         """
-        if self._startup_tasks:
-            await asyncio.gather(*self._startup_tasks)
-            self._startup_tasks = []
+
         return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
 
     def filter_delete_queues(self, queues: list[str]) -> None:
@@ -136,7 +135,6 @@ class SAQConfig:
         """Get the configured SAQ queues."""
         if self.queue_instances is not None:
             return TaskQueues(queues=self.queue_instances)
-        loop = asyncio.get_event_loop()
         self.queue_instances = {}
         self._startup_tasks: list[asyncio.Task[None]] = []
         for queue_config in self.queue_configs:
@@ -148,15 +146,20 @@ class SAQConfig:
             )
             self.queue_instances[queue_config.name] = queue
 
-            async def queue_connect(queue: Queue) -> None:
-                try:
-                    await queue.connect()
-                finally:
-                    await queue.disconnect()
-
-            self._startup_tasks.append(loop.create_task(queue_connect(queue)))
-
         return TaskQueues(queues=self.queue_instances)
+
+    async def _start_provider_queues(self, app: Litestar) -> None:
+        """Start the provider queues."""
+        if self._provider_queues is None:
+            self._provider_queues = {
+                c.name: Queue.from_url(
+                    url=self.dsn,
+                    dump=self.json_serializer,
+                    load=self.json_deserializer,
+                    **{k: (1 if k == "min_size" else 5 if k == "max_size" else v) for k, v in c.broker_options.items()},
+                )
+                for c in self.queue_configs
+            }
 
     def create_app_state_items(self) -> dict[str, Any]:
         """Key/value pairs to be stored in application state."""
