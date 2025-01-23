@@ -27,7 +27,7 @@ async def job_info(queue: Queue, job_id: str) -> Job:
 def build_controller(  # noqa: C901
     url_base: str = "/saq",
     controller_guards: list[Guard] | None = None,  # pyright: ignore[reportUnknownParameterType]
-    include_in_schema_: bool = True,
+    include_in_schema_: bool = False,
 ) -> type[Controller]:
     from litestar import Controller, MediaType, get, post
     from litestar.exceptions import NotFoundException
@@ -136,9 +136,7 @@ def build_controller(  # noqa: C901
             [
                 url_base,
                 f"{url_base}/queues/{{queue_id:str}}",
-                f"{url_base}/queues/{{queue_id:str}}/",
                 f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
-                f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}/",
             ],
             operation_id="WorkerIndex",
             name="worker:index",
