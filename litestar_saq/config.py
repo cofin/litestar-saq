@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -132,14 +133,26 @@ class SAQConfig:
         """Get the configured SAQ queues."""
         if self.queue_instances is not None:
             return TaskQueues(queues=self.queue_instances)
+        loop = asyncio.get_event_loop()
         self.queue_instances = {}
+        self._startup_tasks: list[asyncio.Task[None]] = []
         for queue_config in self.queue_configs:
-            self.queue_instances[queue_config.name] = Queue.from_url(
+            queue = Queue.from_url(
                 url=self.dsn,
                 dump=self.json_serializer,
                 load=self.json_deserializer,
                 **queue_config.broker_options,
             )
+            self.queue_instances[queue_config.name] = queue
+
+            async def queue_connect(queue: Queue) -> None:
+                try:
+                    await queue.connect()
+                finally:
+                    await queue.disconnect()
+
+            self._startup_tasks.append(loop.create_task(queue_connect(queue)))
+
         return TaskQueues(queues=self.queue_instances)
 
     def create_app_state_items(self) -> dict[str, Any]:
