@@ -223,12 +223,11 @@ class SAQConfig:
         """Get the configured SAQ queues."""
         if self.queue_instances is not None:
             return TaskQueues(queues=self.queue_instances)
-        self.get_broker()
 
         self.queue_instances = {}
         for c in self.queue_configs:
             self.queue_instances[c.name] = self.queue_class(  # type: ignore  # noqa: PGH003
-                self.broker_instance,  # type: ignore[arg-type]
+                self.get_broker(),
                 name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
                 load=self.json_deserializer,
