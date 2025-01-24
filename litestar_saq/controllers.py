@@ -41,7 +41,7 @@ def build_controller(  # noqa: C901
         @get(
             operation_id="WorkerQueueList",
             name="worker:queue-list",
-            path=[f"{url_base}/api/queues/", f"{url_base}/api/queues"],
+            path=[f"{url_base}/api/queues"],
             media_type=MediaType.JSON,
             cache=False,
             summary="Queue List",
