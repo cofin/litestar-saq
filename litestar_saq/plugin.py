@@ -4,7 +4,7 @@ import signal
 import sys
 import time
 from collections.abc import Collection, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from importlib.util import find_spec
 from multiprocessing import Process
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -92,21 +92,15 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             app_config.on_startup.append(worker.on_app_startup)
             app_config.on_shutdown.append(worker.on_app_shutdown)
         app_config.on_startup.extend([self.on_app_startup, self._config.update_app_state])
-        app_config.on_shutdown.extend([self.on_app_shutdown, self.remove_workers])
+        app_config.on_shutdown.extend([self.remove_workers])
         return app_config
 
     async def on_app_startup(self) -> None:
         """Startup the connection used for the dependency injections."""
-        if self._config._provider_queues is not None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-            for q in self.config._provider_queues.values():  # type: ignore[union-attr]  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
-                await q.connect()
-
-    async def on_app_shutdown(self) -> None:
-        """Attach the worker to the running event loop."""
-        if self._config._provider_queues is not None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-            for q in self.config._provider_queues.values():  # type: ignore[union-attr] # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
-                with suppress(Exception):
-                    await q.disconnect()
+        if self.config.broker_instance is None:
+            _ = self.config.get_broker()
+        if self.config.broker_instance is not None:
+            await self.config.broker_instance.connect()
 
     def get_workers(self) -> list[Worker]:
         """Return workers"""
