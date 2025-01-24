@@ -100,7 +100,7 @@ class SAQConfig:
     """Location of the static files to serve for the SAQ UI"""
     web_enabled: bool = False
     """If true, the worker admin UI is launched on worker startup.."""
-    web_path: str = "/saq/"
+    web_path: str = "/saq"
     """Base path to serve the SAQ web UI"""
     web_guards: list[Guard] | None = field(default=None)
     """Guards to apply to web endpoints."""
