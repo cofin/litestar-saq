@@ -90,14 +90,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         for worker in workers:
             app_config.on_startup.append(worker.on_app_startup)
             app_config.on_shutdown.append(worker.on_app_shutdown)
-        app_config.on_startup.extend([self.on_app_startup, self._config.update_app_state])
+        app_config.on_startup.extend([self._config.update_app_state])
         app_config.on_shutdown.extend([self.remove_workers])
         return app_config
-
-    async def on_app_startup(self) -> None:
-        """Startup the connection used for the dependency injections."""
-        if self.config.broker_instance is None:
-            _ = self.config.get_broker()
 
     def get_workers(self) -> list[Worker]:
         """Return workers"""

@@ -175,23 +175,26 @@ class SAQConfig:
             from redis.asyncio import from_url as redis_from_url  # pyright: ignore[reportUnknownVariableType]
             from saq.queue.redis import RedisQueue
 
-            self.broker_instance = redis_from_url(self.dsn)
+            broker_instance = redis_from_url(self.dsn)
             self._broker_type = "redis"
             self._queue_class = RedisQueue
         elif self.dsn and self.dsn.startswith("postgresql"):
             from psycopg_pool import AsyncConnectionPool
             from saq.queue.postgres import PostgresQueue
 
-            self.broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)
+            broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)
             self._broker_type = "postgres"
             self._queue_class = PostgresQueue
         elif self.dsn and self.dsn.startswith("http"):
             from saq.queue.http import HttpQueue
 
-            self.broker_instance = HttpQueue(self.dsn)
+            broker_instance = HttpQueue(self.dsn)
             self._broker_type = "http"
             self._queue_class = HttpQueue
-        return self.broker_instance
+        else:
+            msg = "Invalid broker type"
+            raise ImproperlyConfiguredException(msg)
+        return broker_instance
 
     async def provide_queues(self, state: State) -> TaskQueues:
         """Provide the configured job queues.
