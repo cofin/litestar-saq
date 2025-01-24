@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Collection, Mapping
+from collections.abc import Collection, Generator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar, cast
@@ -112,7 +112,7 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    async def provide_queues(self) -> AsyncGenerator[TaskQueues, None]:
+    def provide_queues(self) -> Generator[TaskQueues, None, None]:
         """Provide the configured job queues.
 
         Args:

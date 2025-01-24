@@ -4,7 +4,7 @@ import signal
 import sys
 import time
 from collections.abc import Collection, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from importlib.util import find_spec
 from multiprocessing import Process
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -86,14 +86,13 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 build_controller(self._config.web_path, self._config.web_guards, self._config.web_include_in_schema),  # type: ignore[arg-type]
             )
         app_config.signature_namespace.update(self._config.signature_namespace)
-        app_config.on_startup.append(self.on_app_startup)
-        app_config.on_startup.append(self._config.update_app_state)
-        app_config.on_shutdown.append(self.remove_workers)
 
         workers = self.get_workers()
         for worker in workers:
             app_config.on_startup.append(worker.on_app_startup)
             app_config.on_shutdown.append(worker.on_app_shutdown)
+        app_config.on_startup.extend([self.on_app_startup, self._config.update_app_state])
+        app_config.on_shutdown.extend([self.on_app_shutdown, self.remove_workers])
         return app_config
 
     async def on_app_startup(self) -> None:
@@ -105,8 +104,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     async def on_app_shutdown(self) -> None:
         """Attach the worker to the running event loop."""
         if self._config._provider_queues is not None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-            for q in self.config._provider_queues.values():  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
-                await q.disconnect()
+            for q in self.config._provider_queues.values():  # type: ignore[union-attr] # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
+                with suppress(Exception):
+                    await q.disconnect()
 
     def get_workers(self) -> list[Worker]:
         """Return workers"""
