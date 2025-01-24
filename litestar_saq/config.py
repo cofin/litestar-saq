@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import AsyncGenerator, Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar, cast
@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from typing import Any
 
     from litestar import Litestar
-    from litestar.datastructures.state import State
     from litestar.types.callable_types import Guard  # pyright: ignore[reportUnknownVariableType]
     from saq.types import Function
 
@@ -94,6 +93,9 @@ class SAQConfig:
     """Utilize the server lifespan hook to run SAQ."""
     _provider_queues: Mapping[str, Queue] | None = field(default=None, init=False, repr=False, compare=False)
 
+    def __post_init__(self) -> None:
+        self._start_provider_queues()
+
     @property
     def signature_namespace(self) -> dict[str, Any]:
         """Return the plugin's signature namespace.
@@ -110,7 +112,7 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    def provide_queues(self, state: State) -> TaskQueues:
+    async def provide_queues(self) -> AsyncGenerator[TaskQueues, None]:
         """Provide the configured job queues.
 
         Args:
@@ -119,8 +121,11 @@ class SAQConfig:
         Returns:
             a ``TaskQueues`` instance.
         """
+        if self._provider_queues is None:
+            msg = "Queues have not been started."
+            raise ImproperlyConfiguredException(msg)
 
-        return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
+        yield TaskQueues(queues=self._provider_queues)
 
     def filter_delete_queues(self, queues: list[str]) -> None:
         """Remove all queues except the ones in the given list."""
@@ -148,7 +153,7 @@ class SAQConfig:
 
         return TaskQueues(queues=self.queue_instances)
 
-    async def _start_provider_queues(self, app: Litestar) -> None:
+    def _start_provider_queues(self) -> None:
         """Start the provider queues."""
         if self._provider_queues is None:
             self._provider_queues = {
