@@ -3,7 +3,7 @@ from __future__ import annotations
 import signal
 import sys
 import time
-from collections.abc import Collection, Iterator
+from collections.abc import Collection
 from contextlib import contextmanager
 from importlib.util import find_spec
 from multiprocessing import Process
@@ -15,6 +15,8 @@ from saq.types import ReceivesContext
 from litestar_saq.base import Worker
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from click import Group
     from litestar import Litestar
     from litestar.config.app import AppConfig
@@ -43,7 +45,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             config: configure and start SAQ.
         """
         self._config = config
-        self._worker_instances: list[Worker] | None = None
+        self._worker_instances: dict[str, Worker] | None = None
 
     @property
     def config(self) -> SAQConfig:
@@ -87,19 +89,19 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         app_config.signature_namespace.update(self._config.signature_namespace)
 
         workers = self.get_workers()
-        for worker in workers:
+        for worker in workers.values():
             app_config.on_startup.append(worker.on_app_startup)
             app_config.on_shutdown.append(worker.on_app_shutdown)
         app_config.on_startup.extend([self._config.update_app_state])
         app_config.on_shutdown.extend([self.remove_workers])
         return app_config
 
-    def get_workers(self) -> list[Worker]:
+    def get_workers(self) -> dict[str, Worker]:
         """Return workers"""
         if self._worker_instances is not None:
             return self._worker_instances
-        self._worker_instances = [
-            Worker(
+        self._worker_instances = {
+            queue_config.name: Worker(
                 queue=self.get_queue(queue_config.name),
                 functions=cast("Collection[Function]", queue_config.tasks),
                 cron_jobs=queue_config.scheduled_tasks,
@@ -113,7 +115,8 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 separate_process=queue_config.separate_process,
             )
             for queue_config in self._config.queue_configs
-        ]
+        }
+
         return self._worker_instances
 
     def remove_workers(self) -> None:
@@ -155,10 +158,17 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         signal.signal(signal.SIGINT, handle_shutdown)
 
         try:
-            self._processes.extend(
-                Process(target=run_saq_worker, args=(self.get_workers(), app.logging_config), name=f"saq-worker-{i}")
-                for i in range(self.config.worker_processes)
-            )
+            for worker_name, worker in self.get_workers().items():
+                for i in range(self.config.worker_processes):
+                    process = Process(
+                        target=run_saq_worker,
+                        args=(
+                            worker,
+                            app.logging_config,
+                        ),
+                        name=f"saq-worker-{worker_name}-{i}",
+                    )
+                    self._processes.append(process)
 
             for p in self._processes:
                 p.start()

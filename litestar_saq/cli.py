@@ -57,7 +57,6 @@ def build_cli_app() -> Group:  # noqa: C901
     ) -> None:
         """Run the API server."""
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
-
         if platform.system() == "Darwin":
             multiprocessing.set_start_method("fork", force=True)
 
@@ -70,20 +69,25 @@ def build_cli_app() -> Group:  # noqa: C901
             queue_list = list(queues)
             limited_start_up(plugin, queue_list)
         show_saq_info(app, workers, plugin)
+        managed_workers = list(plugin.get_workers().values())
         if workers > 1:
             for _ in range(workers - 1):
-                p = multiprocessing.Process(target=run_saq_worker, args=(plugin.get_workers(), app.logging_config))
+                managed_workers.extend(managed_workers[:])
+
+        if len(managed_workers) > 1:
+            for _ in range(len(managed_workers) - 1):
+                p = multiprocessing.Process(target=run_saq_worker, args=(managed_workers[_], app.logging_config))
                 p.start()
 
         try:
             run_saq_worker(
-                workers=plugin.get_workers(),
+                worker=managed_workers[0],
                 logging_config=cast("BaseLoggingConfig", app.logging_config),
             )
         except KeyboardInterrupt:
             loop = asyncio.get_event_loop()
-            for worker_instance in plugin.get_workers():
-                loop.run_until_complete(worker_instance.stop())
+            for w in managed_workers:
+                loop.run_until_complete(w.stop())
         console.print("[yellow]SAQ workers stopped.[/]")
 
     @background_worker_group.command(
@@ -154,7 +158,7 @@ def show_saq_info(app: Litestar, workers: int, plugin: SAQPlugin) -> None:  # pr
     console.print(table)
 
 
-def run_saq_worker(workers: list[Worker], logging_config: BaseLoggingConfig | None) -> None:
+def run_saq_worker(worker: Worker, logging_config: BaseLoggingConfig | None) -> None:
     """Run a worker."""
     import asyncio
 
@@ -163,20 +167,17 @@ def run_saq_worker(workers: list[Worker], logging_config: BaseLoggingConfig | No
     if logging_config is not None:
         logging_config.configure()
 
-    async def worker_start(worker: Worker) -> None:
+    async def worker_start(w: Worker) -> None:
         try:
-            await worker.queue.connect()
-            await worker.start()
+            await w.queue.connect()
+            await w.start()
         finally:
-            await worker.queue.disconnect()
+            await w.queue.disconnect()
 
     try:
-        for i, worker_instance in enumerate(workers):
-            if worker_instance.separate_process:
-                if i < len(workers) - 1:
-                    tasks.append(loop.create_task(worker_start(worker_instance)))
-                else:
-                    loop.run_until_complete(loop.create_task(worker_start(worker_instance)))
+        if worker.separate_process:
+            tasks.append(loop.create_task(worker_start(worker)))
+        else:
+            loop.run_until_complete(loop.create_task(worker_start(worker)))
     except KeyboardInterrupt:
-        for worker in workers:
-            loop.run_until_complete(worker.stop())
+        loop.run_until_complete(worker.stop())

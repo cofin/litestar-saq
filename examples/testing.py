@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-APP_DEFAULT_CONFIG_FILE_CONTENT = """
-from __future__ import annotations
-
 import asyncio
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from examples import tasks
 from litestar import Controller, Litestar, get
 
+from examples import tasks
 from litestar_saq import CronJob, QueueConfig, SAQConfig, SAQPlugin
 
 if TYPE_CHECKING:
@@ -64,5 +61,3 @@ saq = SAQPlugin(
     ),
 )
 app = Litestar(plugins=[saq], route_handlers=[SampleController])
-
-"""

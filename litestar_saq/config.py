@@ -182,13 +182,13 @@ class SAQConfig:
             from psycopg_pool import AsyncConnectionPool
             from saq.queue.postgres import PostgresQueue
 
-            broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)
+            broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)  # type: ignore[assignment]
             self._broker_type = "postgres"
             self._queue_class = PostgresQueue
         elif self.dsn and self.dsn.startswith("http"):
             from saq.queue.http import HttpQueue
 
-            broker_instance = HttpQueue(self.dsn)
+            broker_instance = HttpQueue(self.dsn)  # type: ignore[assignment]
             self._broker_type = "http"
             self._queue_class = HttpQueue
         else:
