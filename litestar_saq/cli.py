@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from asyncio import Task
+
     from click import Group
     from litestar import Litestar
     from litestar.logging.config import BaseLoggingConfig
@@ -156,17 +158,25 @@ def run_saq_worker(workers: list[Worker], logging_config: BaseLoggingConfig | No
     """Run a worker."""
     import asyncio
 
-    tasks = []
+    tasks: list[Task[Any]] = []
     loop = asyncio.get_event_loop()
     if logging_config is not None:
         logging_config.configure()
+
+    async def worker_start(worker: Worker) -> None:
+        try:
+            await worker.queue.connect()
+            await worker.start()
+        finally:
+            await worker.queue.disconnect()
+
     try:
         for i, worker_instance in enumerate(workers):
             if worker_instance.separate_process:
                 if i < len(workers) - 1:
-                    tasks.append(loop.create_task(worker_instance.start()))  # pyright: ignore[reportUnknownMemberType]
+                    tasks.append(loop.create_task(worker_start(worker_instance)))
                 else:
-                    loop.run_until_complete(worker_instance.start())
+                    loop.run_until_complete(loop.create_task(worker_start(worker_instance)))
     except KeyboardInterrupt:
         for worker in workers:
             loop.run_until_complete(worker.stop())

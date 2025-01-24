@@ -31,7 +31,7 @@ STRUCTLOG_INSTALLED = find_spec("structlog") is not None
 class SAQPlugin(InitPluginProtocol, CLIPlugin):
     """SAQ plugin."""
 
-    __slots__ = ("_config", "_provider_queues", "_worker_instances")
+    __slots__ = ("_config", "_processes", "_worker_instances")
 
     WORKER_SHUTDOWN_TIMEOUT = 5.0  # seconds
     WORKER_JOIN_TIMEOUT = 1.0  # seconds
@@ -44,7 +44,6 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         """
         self._config = config
         self._worker_instances: list[Worker] | None = None
-        self._provider_queues: TaskQueues | None = None
 
     @property
     def config(self) -> SAQConfig:
@@ -148,12 +147,12 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             return
 
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
-        processes: list[Process] = []
+        self._processes: list[Process] = []
 
         def handle_shutdown(_signum: Any, _frame: Any) -> None:
             """Handle shutdown signals gracefully."""
             console.print("[yellow]Received shutdown signal, stopping workers...[/]")
-            self._terminate_workers(processes)
+            self._terminate_workers(self._processes)
             sys.exit(0)
 
         # Register signal handlers
@@ -161,12 +160,12 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         signal.signal(signal.SIGINT, handle_shutdown)
 
         try:
-            processes.extend(
+            self._processes.extend(
                 Process(target=run_saq_worker, args=(self.get_workers(), app.logging_config), name=f"saq-worker-{i}")
-                for i in range(self._config.worker_processes)
+                for i in range(self.config.worker_processes)
             )
 
-            for p in processes:
+            for p in self._processes:
                 p.start()
 
             yield
@@ -176,7 +175,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             raise
         finally:
             console.print("[yellow]Shutting down SAQ workers...[/]")
-            self._terminate_workers(processes)
+            self._terminate_workers(self._processes)
             console.print("[yellow]SAQ workers stopped.[/]")
 
     def _terminate_workers(self, processes: list[Process], timeout: float = 5.0) -> None:
