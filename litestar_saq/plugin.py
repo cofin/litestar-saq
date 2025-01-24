@@ -99,8 +99,6 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         """Startup the connection used for the dependency injections."""
         if self.config.broker_instance is None:
             _ = self.config.get_broker()
-        if self.config.broker_instance is not None:
-            await self.config.broker_instance.connect()
 
     def get_workers(self) -> list[Worker]:
         """Return workers"""
