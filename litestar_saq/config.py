@@ -171,21 +171,21 @@ class SAQConfig:
         if self.broker_instance is not None:
             return self.broker_instance
 
-        if self.dsn and self.dsn.startswith("redis://"):
+        if self.dsn and self.dsn.startswith("redis"):
             from redis.asyncio import from_url as redis_from_url  # pyright: ignore[reportUnknownVariableType]
             from saq.queue.redis import RedisQueue
 
             self.broker_instance = redis_from_url(self.dsn)
             self._broker_type = "redis"
             self._queue_class = RedisQueue
-        elif self.dsn and self.dsn.startswith("postgres://"):
+        elif self.dsn and self.dsn.startswith("postgresql"):
             from psycopg_pool import AsyncConnectionPool
             from saq.queue.postgres import PostgresQueue
 
             self.broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)
             self._broker_type = "postgres"
             self._queue_class = PostgresQueue
-        elif self.dsn and self.dsn.startswith("http://"):
+        elif self.dsn and self.dsn.startswith("http"):
             from saq.queue.http import HttpQueue
 
             self.broker_instance = HttpQueue(self.dsn)
