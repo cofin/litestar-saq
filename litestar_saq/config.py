@@ -163,7 +163,7 @@ class SAQConfig:
 
     def create_app_state_items(self) -> dict[str, Any]:
         """Key/value pairs to be stored in application state."""
-        return {self.queues_dependency_key: self.get_queues()}
+        return {self.queues_dependency_key: self._provider_queues}
 
     def update_app_state(self, app: Litestar) -> None:
         """Set the app state with worker queues."""

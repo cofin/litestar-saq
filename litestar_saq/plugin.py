@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import signal
 import sys
 import time
@@ -100,12 +99,14 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     async def on_app_startup(self) -> None:
         """Startup the connection used for the dependency injections."""
         if self._config._provider_queues is not None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-            await asyncio.gather(*[q.connect() for q in self.config._provider_queues.values()])  # type: ignore[union-attr] # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
+            for q in self.config._provider_queues.values():  # type: ignore[union-attr]  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
+                await q.connect()
 
     async def on_app_shutdown(self) -> None:
         """Attach the worker to the running event loop."""
         if self._config._provider_queues is not None:  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-            await asyncio.gather(*[q.disconnect() for q in self.config._provider_queues.values()])  # type: ignore[union-attr]  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
+            for q in self.config._provider_queues.values():  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]  # noqa: SLF001
+                await q.disconnect()
 
     def get_workers(self) -> list[Worker]:
         """Return workers"""
