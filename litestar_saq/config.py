@@ -202,8 +202,8 @@ class SAQConfig:
         Returns:
             a ``TaskQueues`` instance.
         """
-        queues = state.get(self.queues_dependency_key, [])
-        for queue in queues:
+        queues = cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
+        for queue in queues.queues.values():
             await queue.connect()
         return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
 
@@ -225,7 +225,7 @@ class SAQConfig:
         self.queue_instances = {}
         for c in self.queue_configs:
             self.queue_instances[c.name] = self.queue_class(  # type: ignore  # noqa: PGH003
-                self.broker_instance,
+                self.broker_instance,  # type: ignore[arg-type]
                 name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
                 load=self.json_deserializer,
