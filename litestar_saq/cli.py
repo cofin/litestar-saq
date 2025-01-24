@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from asyncio import Task
-
     from click import Group
     from litestar import Litestar
     from litestar.logging.config import BaseLoggingConfig
@@ -70,14 +68,25 @@ def build_cli_app() -> Group:  # noqa: C901
             limited_start_up(plugin, queue_list)
         show_saq_info(app, workers, plugin)
         managed_workers = list(plugin.get_workers().values())
+        _processes: list[multiprocessing.Process] = []
         if workers > 1:
             for _ in range(workers - 1):
-                managed_workers.extend(managed_workers[:])
+                for worker in managed_workers:
+                    p = multiprocessing.Process(
+                        target=run_saq_worker,
+                        args=(
+                            worker,
+                            app.logging_config,
+                        ),
+                    )
+                    p.start()
+                    _processes.append(p)
 
         if len(managed_workers) > 1:
             for _ in range(len(managed_workers) - 1):
                 p = multiprocessing.Process(target=run_saq_worker, args=(managed_workers[_], app.logging_config))
                 p.start()
+                _processes.append(p)
 
         try:
             run_saq_worker(
@@ -162,22 +171,16 @@ def run_saq_worker(worker: Worker, logging_config: BaseLoggingConfig | None) -> 
     """Run a worker."""
     import asyncio
 
-    tasks: list[Task[Any]] = []
     loop = asyncio.get_event_loop()
     if logging_config is not None:
         logging_config.configure()
 
-    async def worker_start(w: Worker) -> None:
-        try:
-            await w.queue.connect()
-            await w.start()
-        finally:
-            await w.queue.disconnect()
+    async def worker_start() -> None:
+        await worker.queue.connect()
+        await worker.start()
 
     try:
         if worker.separate_process:
-            tasks.append(loop.create_task(worker_start(worker)))
-        else:
-            loop.run_until_complete(loop.create_task(worker_start(worker)))
+            loop.run_until_complete(loop.create_task(worker_start()))
     except KeyboardInterrupt:
         loop.run_until_complete(worker.stop())

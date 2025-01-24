@@ -160,6 +160,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         try:
             for worker_name, worker in self.get_workers().items():
                 for i in range(self.config.worker_processes):
+                    console.print(f"[yellow]Starting worker process {i} for {worker_name}[/]")
                     process = Process(
                         target=run_saq_worker,
                         args=(
@@ -168,10 +169,8 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                         ),
                         name=f"saq-worker-{worker_name}-{i}",
                     )
+                    process.start()
                     self._processes.append(process)
-
-            for p in self._processes:
-                p.start()
 
             yield
 
@@ -183,7 +182,8 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             self._terminate_workers(self._processes)
             console.print("[yellow]SAQ workers stopped.[/]")
 
-    def _terminate_workers(self, processes: list[Process], timeout: float = 5.0) -> None:
+    @staticmethod
+    def _terminate_workers(processes: list[Process], timeout: float = 5.0) -> None:
         """Gracefully terminate worker processes with timeout.
 
         Args:
