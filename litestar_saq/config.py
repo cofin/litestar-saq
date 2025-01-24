@@ -205,7 +205,7 @@ class SAQConfig:
         queues = cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
         for queue in queues.queues.values():
             await queue.connect()
-        return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
+        return queues
 
     def filter_delete_queues(self, queues: list[str]) -> None:
         """Remove all queues except the ones in the given list."""
