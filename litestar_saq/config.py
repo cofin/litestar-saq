@@ -100,7 +100,7 @@ class SAQConfig:
     """Location of the static files to serve for the SAQ UI"""
     web_enabled: bool = False
     """If true, the worker admin UI is launched on worker startup.."""
-    web_path: str = "/saq"
+    web_path: str = "/saq/"
     """Base path to serve the SAQ web UI"""
     web_guards: list[Guard] | None = field(default=None)
     """Guards to apply to web endpoints."""
@@ -193,7 +193,7 @@ class SAQConfig:
             self._queue_class = HttpQueue
         return self.broker_instance
 
-    def provide_queues(self, state: State) -> TaskQueues:
+    async def provide_queues(self, state: State) -> TaskQueues:
         """Provide the configured job queues.
 
         Args:
@@ -202,6 +202,9 @@ class SAQConfig:
         Returns:
             a ``TaskQueues`` instance.
         """
+        queues = state.get(self.queues_dependency_key, [])
+        for queue in queues:
+            await queue.connect()
         return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
 
     def filter_delete_queues(self, queues: list[str]) -> None:
@@ -221,7 +224,7 @@ class SAQConfig:
 
         self.queue_instances = {}
         for c in self.queue_configs:
-            self.queue_instances[c.name] = self.queue_class(
+            self.queue_instances[c.name] = self.queue_class(  # type: ignore  # noqa: PGH003
                 self.broker_instance,
                 name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
