@@ -179,8 +179,12 @@ def run_saq_worker(worker: Worker, logging_config: BaseLoggingConfig | None) -> 
         await worker.queue.connect()
         await worker.start()
 
+    async def worker_stop() -> None:
+        await worker.queue.disconnect()
+        await worker.stop()
+
     try:
         if worker.separate_process:
             loop.run_until_complete(loop.create_task(worker_start()))
     except KeyboardInterrupt:
-        loop.run_until_complete(worker.stop())
+        loop.run_until_complete(worker_stop())
