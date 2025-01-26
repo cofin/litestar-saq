@@ -59,7 +59,6 @@ class Worker(SaqWorker):
     ) -> None:
         self.separate_process = separate_process
         self.multiprocessing_mode = multiprocessing_mode
-        self._task_ref: Any = None
         super().__init__(
             queue,
             functions,

@@ -175,16 +175,15 @@ def run_saq_worker(worker: Worker, logging_config: BaseLoggingConfig | None) -> 
     if logging_config is not None:
         logging_config.configure()
 
-    async def worker_start() -> None:
-        await worker.queue.connect()
-        await worker.start()
-
-    async def worker_stop() -> None:
-        await worker.queue.disconnect()
-        await worker.stop()
+    async def worker_start(w: Worker) -> None:
+        try:
+            await w.queue.connect()
+            await w.start()
+        finally:
+            await w.queue.disconnect()
 
     try:
         if worker.separate_process:
-            loop.run_until_complete(loop.create_task(worker_start()))
+            loop.run_until_complete(loop.create_task(worker_start(worker)))
     except KeyboardInterrupt:
-        loop.run_until_complete(worker_stop())
+        loop.run_until_complete(loop.create_task(worker.stop()))
