@@ -102,16 +102,6 @@ class SAQConfig:
     use_server_lifespan: bool = False
     """Utilize the server lifespan hook to run SAQ."""
 
-    def __post_init__(self) -> None:
-        """Validate configuration.
-
-        Raises:
-            ImproperlyConfiguredException: If both ``dsn`` and ``broker_instance`` are provided.
-            ImproperlyConfiguredException: If neither ``dsn`` nor ``broker_instance`` are provided.
-        """
-        self._broker_type: Literal["redis", "postgres", "http"] | None = None
-        self._queue_class: type[Queue] | None = None
-
     @property
     def signature_namespace(self) -> dict[str, Any]:
         """Return the plugin's signature namespace.
@@ -158,7 +148,7 @@ class SAQConfig:
 
         self.queue_instances = {}
         for c in self.queue_configs:
-            self.queue_instances[c.name] = self.queue_class(  # type: ignore  # noqa: PGH003
+            self.queue_instances[c.name] = self.c.queue_class(  # type: ignore  # noqa: PGH003
                 c.get_broker(),
                 name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
