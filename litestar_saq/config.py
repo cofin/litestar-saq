@@ -69,13 +69,6 @@ class TaskQueues:
 class SAQConfig:
     """SAQ Configuration."""
 
-    dsn: str | None = None
-    """DSN for connecting to backend. e.g. 'redis://...' or 'postgres://...'.
-    """
-
-    broker_instance: Any | None = None
-    """An instance of a supported saq backend connection..
-    """
     queue_configs: Collection[QueueConfig] = field(default_factory=list)
     """Configuration for Queues"""
 
@@ -118,32 +111,6 @@ class SAQConfig:
         """
         self._broker_type: Literal["redis", "postgres", "http"] | None = None
         self._queue_class: type[Queue] | None = None
-        if self.dsn and self.broker_instance:
-            msg = "Cannot specify both `dsn` and `broker_instance`"
-            raise ImproperlyConfiguredException(msg)
-        if not self.dsn and not self.broker_instance:
-            msg = "Must specify either `dsn` or `broker_instance`"
-            raise ImproperlyConfiguredException(msg)
-
-    @property
-    def broker_type(self) -> Literal["redis", "postgres", "http"]:
-        """Type of broker to use."""
-        if self._broker_type is None:
-            self.get_broker()
-        if self._broker_type is None:
-            msg = "Invalid broker type"
-            raise ImproperlyConfiguredException(msg)
-        return self._broker_type
-
-    @property
-    def queue_class(self) -> type[Queue]:
-        """Type of queue to use."""
-        if self._queue_class is None:
-            self.get_broker()
-        if self._queue_class is None:
-            msg = "Invalid queue class"
-            raise ImproperlyConfiguredException(msg)
-        return self._queue_class
 
     @property
     def signature_namespace(self) -> dict[str, Any]:
@@ -160,41 +127,6 @@ class SAQConfig:
             "Job": Job,
             "TaskQueues": TaskQueues,
         }
-
-    def get_broker(self) -> Any:
-        """Get the configured Broker connection.
-
-        Returns:
-            Dictionary of queues.
-        """
-
-        if self.broker_instance is not None:
-            return self.broker_instance
-
-        if self.dsn and self.dsn.startswith("redis"):
-            from redis.asyncio import from_url as redis_from_url  # pyright: ignore[reportUnknownVariableType]
-            from saq.queue.redis import RedisQueue
-
-            broker_instance = redis_from_url(self.dsn)
-            self._broker_type = "redis"
-            self._queue_class = RedisQueue
-        elif self.dsn and self.dsn.startswith("postgresql"):
-            from psycopg_pool import AsyncConnectionPool
-            from saq.queue.postgres import PostgresQueue
-
-            broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)  # type: ignore[assignment]
-            self._broker_type = "postgres"
-            self._queue_class = PostgresQueue
-        elif self.dsn and self.dsn.startswith("http"):
-            from saq.queue.http import HttpQueue
-
-            broker_instance = HttpQueue(self.dsn)  # type: ignore[assignment]
-            self._broker_type = "http"
-            self._queue_class = HttpQueue
-        else:
-            msg = "Invalid broker type"
-            raise ImproperlyConfiguredException(msg)
-        return broker_instance
 
     async def provide_queues(self, state: State) -> TaskQueues:
         """Provide the configured job queues.
@@ -227,7 +159,7 @@ class SAQConfig:
         self.queue_instances = {}
         for c in self.queue_configs:
             self.queue_instances[c.name] = self.queue_class(  # type: ignore  # noqa: PGH003
-                self.get_broker(),
+                c.get_broker(),
                 name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
                 load=self.json_deserializer,
@@ -271,6 +203,13 @@ class PostgresQueueOptions(TypedDict, total=False):
 class QueueConfig:
     """SAQ Queue Configuration"""
 
+    dsn: str | None = None
+    """DSN for connecting to backend. e.g. 'redis://...' or 'postgres://...'.
+    """
+
+    broker_instance: Any | None = None
+    """An instance of a supported saq backend connection..
+    """
     name: str = "default"
     """The name of the queue to create."""
     concurrency: int = 10
@@ -305,6 +244,12 @@ class QueueConfig:
 
     def __post_init__(self) -> None:
         """Post initialization."""
+        if self.dsn and self.broker_instance:
+            msg = "Cannot specify both `dsn` and `broker_instance`"
+            raise ImproperlyConfiguredException(msg)
+        if not self.dsn and not self.broker_instance:
+            msg = "Must specify either `dsn` or `broker_instance`"
+            raise ImproperlyConfiguredException(msg)
         self.tasks = [self._get_or_import_task(task) for task in self.tasks]
         if self.startup is not None and not isinstance(self.startup, Collection):
             self.startup = [self.startup]
@@ -318,6 +263,63 @@ class QueueConfig:
         self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]
         self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]
         self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]
+        self._broker_type: Literal["redis", "postgres", "http"] | None = None
+        self._queue_class: type[Queue] | None = None
+
+    def get_broker(self) -> Any:
+        """Get the configured Broker connection.
+
+        Returns:
+            Dictionary of queues.
+        """
+
+        if self.broker_instance is not None:
+            return self.broker_instance
+
+        if self.dsn and self.dsn.startswith("redis"):
+            from redis.asyncio import from_url as redis_from_url  # pyright: ignore[reportUnknownVariableType]
+            from saq.queue.redis import RedisQueue
+
+            self.broker_instance = redis_from_url(self.dsn)
+            self._broker_type = "redis"
+            self._queue_class = RedisQueue
+        elif self.dsn and self.dsn.startswith("postgresql"):
+            from psycopg_pool import AsyncConnectionPool
+            from saq.queue.postgres import PostgresQueue
+
+            self.broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)  # type: ignore[assignment]
+            self._broker_type = "postgres"
+            self._queue_class = PostgresQueue
+        elif self.dsn and self.dsn.startswith("http"):
+            from saq.queue.http import HttpQueue
+
+            self.broker_instance = HttpQueue(self.dsn)  # type: ignore[assignment]
+            self._broker_type = "http"
+            self._queue_class = HttpQueue
+        else:
+            msg = "Invalid broker type"
+            raise ImproperlyConfiguredException(msg)
+        return self.broker_instance
+
+    @property
+    def broker_type(self) -> Literal["redis", "postgres", "http"]:
+        """Type of broker to use."""
+        if self._broker_type is None:
+            self.get_broker()
+        if self._broker_type is None:
+            msg = "Invalid broker type"
+            raise ImproperlyConfiguredException(msg)
+        return self._broker_type
+
+    @property
+    def queue_class(self) -> type[Queue]:
+        """Type of queue to use."""
+        if self._queue_class is None:
+            self.get_broker()
+        if self._queue_class is None:
+            msg = "Invalid queue class"
+            raise ImproperlyConfiguredException(msg)
+        return self._queue_class
 
     @staticmethod
     def _get_or_import_task(task_or_import_string: str | tuple[str, Function] | ReceivesContext) -> ReceivesContext:
