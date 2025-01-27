@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import AsyncGenerator, Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar, cast
@@ -16,8 +16,6 @@ from litestar_saq.base import CronJob, Job, Worker
 if TYPE_CHECKING:
     from typing import Any
 
-    from litestar import Litestar
-    from litestar.datastructures.state import State
     from litestar.types.callable_types import Guard  # pyright: ignore[reportUnknownVariableType]
     from saq.types import Function
 
@@ -42,13 +40,26 @@ def _get_static_files() -> Path:
 
 @dataclass
 class TaskQueues:
+    """Task queues."""
+
     queues: Mapping[str, Queue] = field(default_factory=dict)
 
     def get(self, name: str) -> Queue:
+        """Get a queue by name.
+
+        Args:
+            name: The name of the queue.
+
+        Returns:
+            The queue.
+
+        Raises:
+            ImproperlyConfiguredException: If the queue does not exist.
+        """
         queue = self.queues.get(name)
         if queue is not None:
             return queue
-        msg = "Could not find the specified queue.  Please check your configuration."
+        msg = "Could not find the specified queue. Please check your configuration."
         raise ImproperlyConfiguredException(msg)
 
 
@@ -56,14 +67,11 @@ class TaskQueues:
 class SAQConfig:
     """SAQ Configuration."""
 
-    dsn: str
-    """DSN for connecting to backend. e.g. 'redis://...' or 'postgres://...'.
-    """
-    queue_configs: Collection[QueueConfig] = field(default_factory=lambda: [QueueConfig()])
+    queue_configs: Collection[QueueConfig] = field(default_factory=list)
     """Configuration for Queues"""
 
     queue_instances: Mapping[str, Queue] | None = None
-    """Current configured queue instances.  When None, queues will be auto-created on startup"""
+    """Current configured queue instances. When None, queues will be auto-created on startup"""
     queues_dependency_key: str = field(default="task_queues")
     """Key to use for storing dependency information in litestar."""
     worker_processes: int = 1
@@ -108,16 +116,12 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    def provide_queues(self, state: State) -> TaskQueues:
-        """Provide the configured job queues.
-
-        Args:
-            state: The ``Litestar.state`` instance.
-
-        Returns:
-            a ``TaskQueues`` instance.
-        """
-        return cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
+    async def provide_queues(self) -> AsyncGenerator[TaskQueues, None]:
+        """Provide the configured job queues."""
+        queues = self.get_queues()
+        for queue in queues.queues.values():
+            await queue.connect()
+        yield queues
 
     def filter_delete_queues(self, queues: list[str]) -> None:
         """Remove all queues except the ones in the given list."""
@@ -132,23 +136,17 @@ class SAQConfig:
         """Get the configured SAQ queues."""
         if self.queue_instances is not None:
             return TaskQueues(queues=self.queue_instances)
+
         self.queue_instances = {}
-        for queue_config in self.queue_configs:
-            self.queue_instances[queue_config.name] = Queue.from_url(
-                url=self.dsn,
+        for c in self.queue_configs:
+            self.queue_instances[c.name] = c.queue_class(  # type: ignore  # noqa: PGH003
+                c.get_broker(),
+                name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
                 load=self.json_deserializer,
-                **queue_config.broker_options,
+                **c.broker_options,  # pyright: ignore[reportArgumentType]
             )
         return TaskQueues(queues=self.queue_instances)
-
-    def create_app_state_items(self) -> dict[str, Any]:
-        """Key/value pairs to be stored in application state."""
-        return {self.queues_dependency_key: self.get_queues()}
-
-    def update_app_state(self, app: Litestar) -> None:
-        """Set the app state with worker queues."""
-        app.state.update(self.create_app_state_items())
 
 
 class RedisQueueOptions(TypedDict, total=False):
@@ -178,6 +176,13 @@ class PostgresQueueOptions(TypedDict, total=False):
 class QueueConfig:
     """SAQ Queue Configuration"""
 
+    dsn: str | None = None
+    """DSN for connecting to backend. e.g. 'redis://...' or 'postgres://...'.
+    """
+
+    broker_instance: Any | None = None
+    """An instance of a supported saq backend connection..
+    """
     name: str = "default"
     """The name of the queue to create."""
     concurrency: int = 10
@@ -205,12 +210,19 @@ class QueueConfig:
     dequeue_timeout: float = 0
     """How long to wait to dequeue."""
     multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing"
-    """Executes with the multiprocessing or threading backend.  Multi-processing is recommended and how SAQ is designed to work."""
+    """Executes with the multiprocessing or threading backend. Multi-processing is recommended and how SAQ is designed to work."""
     separate_process: bool = True
     """Executes as a separate event loop when True.
             Set it False to execute within the Litestar application."""
 
     def __post_init__(self) -> None:
+        """Post initialization."""
+        if self.dsn and self.broker_instance:
+            msg = "Cannot specify both `dsn` and `broker_instance`"
+            raise ImproperlyConfiguredException(msg)
+        if not self.dsn and not self.broker_instance:
+            msg = "Must specify either `dsn` or `broker_instance`"
+            raise ImproperlyConfiguredException(msg)
         self.tasks = [self._get_or_import_task(task) for task in self.tasks]
         if self.startup is not None and not isinstance(self.startup, Collection):
             self.startup = [self.startup]
@@ -224,9 +236,94 @@ class QueueConfig:
         self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]
         self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]
         self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]
+        self._broker_type: Literal["redis", "postgres", "http"] | None = None
+        self._queue_class: type[Queue] | None = None
+
+    def get_broker(self) -> Any:
+        """Get the configured Broker connection.
+
+        Returns:
+            Dictionary of queues.
+        """
+
+        if self.broker_instance is not None:
+            return self.broker_instance
+
+        if self.dsn and self.dsn.startswith("redis"):
+            from redis.asyncio import from_url as redis_from_url  # pyright: ignore[reportUnknownVariableType]
+            from saq.queue.redis import RedisQueue
+
+            self.broker_instance = redis_from_url(self.dsn)
+            self._broker_type = "redis"
+            self._queue_class = RedisQueue
+        elif self.dsn and self.dsn.startswith("postgresql"):
+            from psycopg_pool import AsyncConnectionPool
+            from saq.queue.postgres import PostgresQueue
+
+            self.broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)
+            self._broker_type = "postgres"
+            self._queue_class = PostgresQueue
+        elif self.dsn and self.dsn.startswith("http"):
+            from saq.queue.http import HttpQueue
+
+            self.broker_instance = HttpQueue(self.dsn)
+            self._broker_type = "http"
+            self._queue_class = HttpQueue
+        else:
+            msg = "Invalid broker type"
+            raise ImproperlyConfiguredException(msg)
+        return self.broker_instance
+
+    @property
+    def broker_type(self) -> Literal["redis", "postgres", "http"]:
+        """Type of broker to use."""
+        if self._broker_type is None and self.broker_instance is not None:
+            if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
+                self._broker_type = "postgres"
+            elif self.broker_instance.__class__.__name__ == "Redis":
+                self._broker_type = "redis"
+            elif self.broker_instance.__class__.__name__ == "HttpQueue":
+                self._broker_type = "http"
+        if self._broker_type is None:
+            self.get_broker()
+        if self._broker_type is None:
+            msg = "Invalid broker type"
+            raise ImproperlyConfiguredException(msg)
+        return self._broker_type
+
+    @property
+    def queue_class(self) -> type[Queue]:
+        """Type of queue to use."""
+        if self._queue_class is None and self.broker_instance is not None:
+            if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
+                from saq.queue.postgres import PostgresQueue
+
+                self._queue_class = PostgresQueue
+            elif self.broker_instance.__class__.__name__ == "Redis":
+                from saq.queue.redis import RedisQueue
+
+                self._queue_class = RedisQueue
+            elif self.broker_instance.__class__.__name__ == "HttpQueue":
+                from saq.queue.http import HttpQueue
+
+                self._queue_class = HttpQueue
+        if self._queue_class is None:
+            self.get_broker()
+        if self._queue_class is None:
+            msg = "Invalid queue class"
+            raise ImproperlyConfiguredException(msg)
+        return self._queue_class
 
     @staticmethod
     def _get_or_import_task(task_or_import_string: str | tuple[str, Function] | ReceivesContext) -> ReceivesContext:
+        """Get or import a task.
+
+        Args:
+            task_or_import_string: The task or import string.
+
+        Returns:
+            The task.
+        """
         if isinstance(task_or_import_string, str):
             return cast("ReceivesContext", import_string(task_or_import_string))
         if isinstance(task_or_import_string, tuple):

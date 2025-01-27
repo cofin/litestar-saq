@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-APP_DEFAULT_CONFIG_FILE_CONTENT = """
-from __future__ import annotations
-
 import asyncio
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from examples import tasks
 from litestar import Controller, Litestar, get
 
+from examples import tasks
 from litestar_saq import CronJob, QueueConfig, SAQConfig, SAQPlugin
 
 if TYPE_CHECKING:
@@ -55,14 +52,11 @@ saq = SAQPlugin(
         use_server_lifespan=True,
         queue_configs=[
             QueueConfig(
-                dsn="redis://localhost:6397/0",
-                name="samples",
+                dsn="postgresql://app:app@localhost:15432/app",
                 tasks=[tasks.background_worker_task, tasks.system_task, tasks.system_upkeep],
                 scheduled_tasks=[CronJob(function=tasks.system_upkeep, cron="* * * * *", timeout=600, ttl=2000)],
-            ),
+            )
         ],
     ),
 )
 app = Litestar(plugins=[saq], route_handlers=[SampleController])
-
-"""

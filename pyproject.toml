@@ -16,7 +16,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-    "litestar>=2.0.1",
+ "litestar>=2.0.1",
  "saq>=0.14.1",
 ]
 description = "Litestar integration for SAQ"
@@ -29,6 +29,7 @@ version = "0.4.0"
 
 [project.optional-dependencies]
 hiredis = ["hiredis"]
+psycopg = ["psycopg[pool,binary]"]
 
 [project.urls]
 Changelog = "https://cofin.github.io/litesatr-saq/latest/changelog"
@@ -44,7 +45,7 @@ requires = ["hatchling"]
 
 [dependency-groups]
 dev = [{include-group = "build"}, {include-group = "linting"}, {include-group = "test"}]
-build = ["bump-my-version","psycopg[pool,binary]"]
+build = ["bump-my-version"]
 linting = [
   "pre-commit",
   "mypy",

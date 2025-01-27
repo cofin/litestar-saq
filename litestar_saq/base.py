@@ -41,11 +41,6 @@ class CronJob(SaqCronJob):
 class Worker(SaqWorker):
     """Worker."""
 
-    """
-    # same issue: https://github.com/samuelcolvin/arq/issues/182
-    SIGNALS: list[Signals] = []
-    """
-
     def __init__(
         self,
         queue: Queue,
@@ -82,10 +77,10 @@ class Worker(SaqWorker):
         if not self.separate_process:
             self.SIGNALS = []
             loop = asyncio.get_running_loop()
-            _ = loop.create_task(self.start())  # noqa: RUF006
+            self._saq_asyncio_tasks = loop.create_task(self.start())
 
     async def on_app_shutdown(self) -> None:
         """Attach the worker to the running event loop."""
         if not self.separate_process:
             loop = asyncio.get_running_loop()
-            _ = loop.create_task(self.stop())  # noqa: RUF006
+            self._saq_asyncio_tasks = loop.create_task(self.stop())

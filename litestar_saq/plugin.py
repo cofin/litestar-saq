@@ -3,7 +3,7 @@ from __future__ import annotations
 import signal
 import sys
 import time
-from collections.abc import Collection, Iterator
+from collections.abc import Collection
 from contextlib import contextmanager
 from importlib.util import find_spec
 from multiprocessing import Process
@@ -15,6 +15,8 @@ from saq.types import ReceivesContext
 from litestar_saq.base import Worker
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from click import Group
     from litestar import Litestar
     from litestar.config.app import AppConfig
@@ -31,7 +33,7 @@ STRUCTLOG_INSTALLED = find_spec("structlog") is not None
 class SAQPlugin(InitPluginProtocol, CLIPlugin):
     """SAQ plugin."""
 
-    __slots__ = ("_config", "_worker_instances")
+    __slots__ = ("_config", "_processes", "_worker_instances")
 
     WORKER_SHUTDOWN_TIMEOUT = 5.0  # seconds
     WORKER_JOIN_TIMEOUT = 1.0  # seconds
@@ -43,7 +45,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             config: configure and start SAQ.
         """
         self._config = config
-        self._worker_instances: list[Worker] | None = None
+        self._worker_instances: dict[str, Worker] | None = None
 
     @property
     def config(self) -> SAQConfig:
@@ -68,12 +70,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         from litestar_saq.controllers import build_controller
 
         app_config.dependencies.update(
-            {
-                self._config.queues_dependency_key: Provide(
-                    dependency=self._config.provide_queues,
-                    sync_to_thread=False,
-                ),
-            },
+            {self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues)}
         )
         if self._config.web_enabled:
             app_config.route_handlers.append(
@@ -89,22 +86,21 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             app_config.route_handlers.append(
                 build_controller(self._config.web_path, self._config.web_guards, self._config.web_include_in_schema),  # type: ignore[arg-type]
             )
-        app_config.on_startup.append(self._config.update_app_state)
         app_config.signature_namespace.update(self._config.signature_namespace)
+
         workers = self.get_workers()
-        for worker in workers:
-            if not worker.separate_process:
-                app_config.on_startup.append(worker.on_app_startup)
-                app_config.on_shutdown.append(worker.on_app_shutdown)
+        for worker in workers.values():
+            app_config.on_startup.append(worker.on_app_startup)
+            app_config.on_shutdown.append(worker.on_app_shutdown)
+        app_config.on_shutdown.extend([self.remove_workers])
         return app_config
 
-    def get_workers(self) -> list[Worker]:
+    def get_workers(self) -> dict[str, Worker]:
         """Return workers"""
         if self._worker_instances is not None:
             return self._worker_instances
-        self._worker_instances = []
-        self._worker_instances.extend(
-            Worker(
+        self._worker_instances = {
+            queue_config.name: Worker(
                 queue=self.get_queue(queue_config.name),
                 functions=cast("Collection[Function]", queue_config.tasks),
                 cron_jobs=queue_config.scheduled_tasks,
@@ -118,7 +114,8 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 separate_process=queue_config.separate_process,
             )
             for queue_config in self._config.queue_configs
-        )
+        }
+
         return self._worker_instances
 
     def remove_workers(self) -> None:
@@ -147,12 +144,12 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             return
 
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
-        processes: list[Process] = []
+        self._processes: list[Process] = []
 
         def handle_shutdown(_signum: Any, _frame: Any) -> None:
             """Handle shutdown signals gracefully."""
             console.print("[yellow]Received shutdown signal, stopping workers...[/]")
-            self._terminate_workers(processes)
+            self._terminate_workers(self._processes)
             sys.exit(0)
 
         # Register signal handlers
@@ -160,13 +157,19 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         signal.signal(signal.SIGINT, handle_shutdown)
 
         try:
-            processes.extend(
-                Process(target=run_saq_worker, args=(self.get_workers(), app.logging_config), name=f"saq-worker-{i}")
-                for i in range(self._config.worker_processes)
-            )
-
-            for p in processes:
-                p.start()
+            for worker_name, worker in self.get_workers().items():
+                for i in range(self.config.worker_processes):
+                    console.print(f"[yellow]Starting worker process {i + 1} for {worker_name}[/]")
+                    process = Process(
+                        target=run_saq_worker,
+                        args=(
+                            worker,
+                            app.logging_config,
+                        ),
+                        name=f"worker-{worker_name}-{i + 1}",
+                    )
+                    process.start()
+                    self._processes.append(process)
 
             yield
 
@@ -175,10 +178,11 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             raise
         finally:
             console.print("[yellow]Shutting down SAQ workers...[/]")
-            self._terminate_workers(processes)
+            self._terminate_workers(self._processes)
             console.print("[yellow]SAQ workers stopped.[/]")
 
-    def _terminate_workers(self, processes: list[Process], timeout: float = 5.0) -> None:
+    @staticmethod
+    def _terminate_workers(processes: list[Process], timeout: float = 5.0) -> None:
         """Gracefully terminate worker processes with timeout.
 
         Args:

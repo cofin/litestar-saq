@@ -23,11 +23,11 @@ class SampleController(Controller):
 
 saq = SAQPlugin(
     config=SAQConfig(
-        dsn="redis://localhost:6397/0",
         web_enabled=True,
         use_server_lifespan=True,
         queue_configs=[
             QueueConfig(
+                dsn="redis://localhost:6397/0",
                 name="samples",
                 tasks=[tasks.background_worker_task, tasks.system_task, tasks.system_upkeep],
                 scheduled_tasks=[CronJob(function=tasks.system_upkeep, cron="* * * * *", timeout=600, ttl=2000)],
