@@ -148,7 +148,7 @@ class SAQConfig:
 
         self.queue_instances = {}
         for c in self.queue_configs:
-            self.queue_instances[c.name] = self.c.queue_class(  # type: ignore  # noqa: PGH003
+            self.queue_instances[c.name] = c.queue_class(  # type: ignore  # noqa: PGH003
                 c.get_broker(),
                 name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
