@@ -260,13 +260,13 @@ class QueueConfig:
             from psycopg_pool import AsyncConnectionPool
             from saq.queue.postgres import PostgresQueue
 
-            self.broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)  # type: ignore[assignment]
+            self.broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)
             self._broker_type = "postgres"
             self._queue_class = PostgresQueue
         elif self.dsn and self.dsn.startswith("http"):
             from saq.queue.http import HttpQueue
 
-            self.broker_instance = HttpQueue(self.dsn)  # type: ignore[assignment]
+            self.broker_instance = HttpQueue(self.dsn)
             self._broker_type = "http"
             self._queue_class = HttpQueue
         else:
@@ -277,6 +277,13 @@ class QueueConfig:
     @property
     def broker_type(self) -> Literal["redis", "postgres", "http"]:
         """Type of broker to use."""
+        if self._broker_type is None and self.broker_instance is not None:
+            if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
+                self._broker_type = "postgres"
+            elif self.broker_instance.__class__.__name__ == "Redis":
+                self._broker_type = "redis"
+            elif self.broker_instance.__class__.__name__ == "HttpQueue":
+                self._broker_type = "http"
         if self._broker_type is None:
             self.get_broker()
         if self._broker_type is None:
@@ -287,6 +294,19 @@ class QueueConfig:
     @property
     def queue_class(self) -> type[Queue]:
         """Type of queue to use."""
+        if self._queue_class is None and self.broker_instance is not None:
+            if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
+                from saq.queue.postgres import PostgresQueue
+
+                self._queue_class = PostgresQueue
+            elif self.broker_instance.__class__.__name__ == "Redis":
+                from saq.queue.redis import RedisQueue
+
+                self._queue_class = RedisQueue
+            elif self.broker_instance.__class__.__name__ == "HttpQueue":
+                from saq.queue.http import HttpQueue
+
+                self._queue_class = HttpQueue
         if self._queue_class is None:
             self.get_broker()
         if self._queue_class is None:
