@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import AsyncGenerator, Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar, cast
@@ -16,8 +16,6 @@ from litestar_saq.base import CronJob, Job, Worker
 if TYPE_CHECKING:
     from typing import Any
 
-    from litestar import Litestar
-    from litestar.datastructures.state import State
     from litestar.types.callable_types import Guard  # pyright: ignore[reportUnknownVariableType]
     from saq.types import Function
 
@@ -118,19 +116,12 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    async def provide_queues(self, state: State) -> TaskQueues:
-        """Provide the configured job queues.
-
-        Args:
-            state: The ``Litestar.state`` instance.
-
-        Returns:
-            a ``TaskQueues`` instance.
-        """
-        queues = cast("TaskQueues", state.get(self.queues_dependency_key, TaskQueues()))
+    async def provide_queues(self) -> AsyncGenerator[TaskQueues, None]:
+        """Provide the configured job queues."""
+        queues = self.get_queues()
         for queue in queues.queues.values():
             await queue.connect()
-        return queues
+        yield queues
 
     def filter_delete_queues(self, queues: list[str]) -> None:
         """Remove all queues except the ones in the given list."""
@@ -156,14 +147,6 @@ class SAQConfig:
                 **c.broker_options,  # pyright: ignore[reportArgumentType]
             )
         return TaskQueues(queues=self.queue_instances)
-
-    def create_app_state_items(self) -> dict[str, Any]:
-        """Key/value pairs to be stored in application state."""
-        return {self.queues_dependency_key: self.get_queues()}
-
-    def update_app_state(self, app: Litestar) -> None:
-        """Set the app state with worker queues."""
-        app.state.update(self.create_app_state_items())
 
 
 class RedisQueueOptions(TypedDict, total=False):

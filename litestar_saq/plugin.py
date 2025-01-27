@@ -92,7 +92,6 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         for worker in workers.values():
             app_config.on_startup.append(worker.on_app_startup)
             app_config.on_shutdown.append(worker.on_app_shutdown)
-        app_config.on_startup.extend([self._config.update_app_state])
         app_config.on_shutdown.extend([self.remove_workers])
         return app_config
 
@@ -160,14 +159,14 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         try:
             for worker_name, worker in self.get_workers().items():
                 for i in range(self.config.worker_processes):
-                    console.print(f"[yellow]Starting worker process {i} for {worker_name}[/]")
+                    console.print(f"[yellow]Starting worker process {i + 1} for {worker_name}[/]")
                     process = Process(
                         target=run_saq_worker,
                         args=(
                             worker,
                             app.logging_config,
                         ),
-                        name=f"saq-worker-{worker_name}-{i}",
+                        name=f"worker-{worker_name}-{i + 1}",
                     )
                     process.start()
                     self._processes.append(process)
