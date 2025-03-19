@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 
 from litestar.utils.module_loader import import_string
 from saq import Job as SaqJob
@@ -25,14 +23,14 @@ class Job(SaqJob):
 class CronJob(SaqCronJob):
     """Cron Job Details"""
 
-    function: Function | str  # type: ignore[assignment]
-    meta: dict[str, Any] = field(default_factory=dict)
+    function: "Union[Function, str]"
+    meta: "dict[str, Any]" = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.function = self._get_or_import_function(self.function)  # pyright: ignore[reportIncompatibleMethodOverride]
 
     @staticmethod
-    def _get_or_import_function(function_or_import_string: str | Function) -> Function:
+    def _get_or_import_function(function_or_import_string: "Union[str, Function]") -> "Function":
         if isinstance(function_or_import_string, str):
             return cast("Function", import_string(function_or_import_string))
         return function_or_import_string
@@ -43,16 +41,16 @@ class Worker(SaqWorker):
 
     def __init__(
         self,
-        queue: Queue,
-        functions: Collection[Function | tuple[str, Function]],
+        queue: "Queue",
+        functions: "Collection[Union[Function, tuple[str, Function]]]",
         *,
         concurrency: int = 10,
-        cron_jobs: Collection[CronJob] | None = None,
-        startup: ReceivesContext | Collection[ReceivesContext] | None = None,
-        shutdown: ReceivesContext | Collection[ReceivesContext] | None = None,
-        before_process: ReceivesContext | Collection[ReceivesContext] | None = None,
-        after_process: ReceivesContext | Collection[ReceivesContext] | None = None,
-        timers: PartialTimersDict | None = None,
+        cron_jobs: "Optional[Collection[CronJob]]" = None,
+        startup: "Optional[Union[ReceivesContext, Collection[ReceivesContext]]]" = None,
+        shutdown: "Optional[Union[ReceivesContext, Collection[ReceivesContext]]]" = None,
+        before_process: "Optional[Union[ReceivesContext, Collection[ReceivesContext]]]" = None,
+        after_process: "Optional[Union[ReceivesContext, Collection[ReceivesContext]]]" = None,
+        timers: "Optional[PartialTimersDict]" = None,
         dequeue_timeout: float = 0,
         separate_process: bool = True,
         multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing",

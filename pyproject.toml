@@ -196,8 +196,9 @@ lint.ignore = [
   "TD",
   "ARG002",  # ignore for now; investigate
   "PERF203", # ignore for now; investigate
-    "ISC001",
+  "ISC001",
   "COM812",
+  "FA100"    # use __future__ import annotations
 ]
 lint.select = ["ALL"]
 # Allow unused variables when underscore-prefixed.

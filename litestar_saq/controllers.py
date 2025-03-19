@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from litestar.exceptions import NotFoundException
 
@@ -15,7 +13,7 @@ if TYPE_CHECKING:
     from litestar_saq.config import TaskQueues
 
 
-async def job_info(queue: Queue, job_id: str) -> Job:
+async def job_info(queue: "Queue", job_id: str) -> "Job":
     job = await queue.job(job_id)
     if not job:
         msg = f"Could not find job ID {job_id}"
@@ -26,9 +24,9 @@ async def job_info(queue: Queue, job_id: str) -> Job:
 @lru_cache(typed=True)
 def build_controller(  # noqa: C901
     url_base: str = "/saq",
-    controller_guards: list[Guard] | None = None,  # pyright: ignore[reportUnknownParameterType]
+    controller_guards: "Optional[list[Guard]]" = None,  # pyright: ignore[reportUnknownParameterType]
     include_in_schema_: bool = False,
-) -> type[Controller]:
+) -> "type[Controller]":
     from litestar import Controller, MediaType, get, post
     from litestar.exceptions import NotFoundException
     from litestar.status_codes import HTTP_202_ACCEPTED
@@ -47,7 +45,7 @@ def build_controller(  # noqa: C901
             summary="Queue List",
             description="List configured worker queues.",
         )
-        async def queue_list(self, task_queues: TaskQueues) -> dict[str, list[QueueInfo]]:
+        async def queue_list(self, task_queues: "TaskQueues") -> "dict[str, list[QueueInfo]]":
             """Get Worker queues."""
             return {"queues": [await queue.info() for queue in task_queues.queues.values()]}
 
@@ -60,7 +58,7 @@ def build_controller(  # noqa: C901
             summary="Queue Detail",
             description="List queue details.",
         )
-        async def queue_detail(self, task_queues: TaskQueues, queue_id: str) -> dict[str, QueueInfo]:
+        async def queue_detail(self, task_queues: "TaskQueues", queue_id: str) -> "dict[str, QueueInfo]":
             """Get queue information."""
             queue = task_queues.get(queue_id)
             if not queue:
@@ -77,7 +75,9 @@ def build_controller(  # noqa: C901
             summary="Job Details",
             description="List job details.",
         )
-        async def job_detail(self, task_queues: TaskQueues, queue_id: str, job_id: str) -> dict[str, dict[str, Any]]:
+        async def job_detail(
+            self, task_queues: "TaskQueues", queue_id: str, job_id: str
+        ) -> "dict[str, dict[str, Any]]":
             """Get job information."""
             queue = task_queues.get(queue_id)
             if not queue:
@@ -101,7 +101,7 @@ def build_controller(  # noqa: C901
             description="Retry a failed job..",
             status_code=HTTP_202_ACCEPTED,
         )
-        async def job_retry(self, task_queues: TaskQueues, queue_id: str, job_id: str) -> dict[str, str]:
+        async def job_retry(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
             """Retry job."""
             queue = task_queues.get(queue_id)
             if not queue:
@@ -121,7 +121,7 @@ def build_controller(  # noqa: C901
             description="Abort active job.",
             status_code=HTTP_202_ACCEPTED,
         )
-        async def job_abort(self, task_queues: TaskQueues, queue_id: str, job_id: str) -> dict[str, str]:
+        async def job_abort(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
             """Abort job."""
             queue = task_queues.get(queue_id)
             if not queue:
