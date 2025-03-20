@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator, Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar, cast
+from typing import TYPE_CHECKING, Literal, Optional, TypedDict, TypeVar, Union, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
@@ -22,7 +20,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-def serializer(value: Any) -> str:
+def serializer(value: "Any") -> str:
     """Serialize JSON field values.
 
     Args:
@@ -42,9 +40,9 @@ def _get_static_files() -> Path:
 class TaskQueues:
     """Task queues."""
 
-    queues: Mapping[str, Queue] = field(default_factory=dict)
+    queues: "Mapping[str, Queue]" = field(default_factory=dict)
 
-    def get(self, name: str) -> Queue:
+    def get(self, name: str) -> "Queue":
         """Get a queue by name.
 
         Args:
@@ -67,10 +65,10 @@ class TaskQueues:
 class SAQConfig:
     """SAQ Configuration."""
 
-    queue_configs: Collection[QueueConfig] = field(default_factory=list)
+    queue_configs: "Collection[QueueConfig]" = field(default_factory=list)
     """Configuration for Queues"""
 
-    queue_instances: Mapping[str, Queue] | None = None
+    queue_instances: "Optional[Mapping[str, Queue]]" = None
     """Current configured queue instances. When None, queues will be auto-created on startup"""
     queues_dependency_key: str = field(default="task_queues")
     """Key to use for storing dependency information in litestar."""
@@ -80,11 +78,11 @@ class SAQConfig:
     Default is set to 1.
     """
 
-    json_deserializer: LoadType = decode_json
+    json_deserializer: "LoadType" = decode_json
     """This is a Python callable that will
     convert a JSON string to a Python object. By default, this is set to Litestar's
     :attr:`decode_json() <.serialization.decode_json>` function."""
-    json_serializer: DumpType = serializer
+    json_serializer: "DumpType" = serializer
     """This is a Python callable that will render a given object as JSON.
     By default, Litestar's :attr:`encode_json() <.serialization.encode_json>` is used."""
     static_files: Path = field(default_factory=_get_static_files)
@@ -93,7 +91,7 @@ class SAQConfig:
     """If true, the worker admin UI is launched on worker startup.."""
     web_path: str = "/saq"
     """Base path to serve the SAQ web UI"""
-    web_guards: list[Guard] | None = field(default=None)
+    web_guards: "Optional[list[Guard]]" = field(default=None)
     """Guards to apply to web endpoints."""
     web_include_in_schema: bool = False
     """Include Queue API endpoints in generated OpenAPI schema"""
@@ -101,7 +99,7 @@ class SAQConfig:
     """Utilize the server lifespan hook to run SAQ."""
 
     @property
-    def signature_namespace(self) -> dict[str, Any]:
+    def signature_namespace(self) -> "dict[str, Any]":
         """Return the plugin's signature namespace.
 
         Returns:
@@ -116,14 +114,14 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    async def provide_queues(self) -> AsyncGenerator[TaskQueues, None]:
+    async def provide_queues(self) -> "AsyncGenerator[TaskQueues, None]":
         """Provide the configured job queues."""
         queues = self.get_queues()
         for queue in queues.queues.values():
             await queue.connect()
         yield queues
 
-    def filter_delete_queues(self, queues: list[str]) -> None:
+    def filter_delete_queues(self, queues: "list[str]") -> None:
         """Remove all queues except the ones in the given list."""
         new_config = [queue_config for queue_config in self.queue_configs if queue_config.name in queues]
         self.queue_configs = new_config
@@ -132,7 +130,7 @@ class SAQConfig:
                 if queue_name not in queues:
                     del self.queue_instances[queue_name]  # type: ignore  # noqa: PGH003
 
-    def get_queues(self) -> TaskQueues:
+    def get_queues(self) -> "TaskQueues":
         """Get the configured SAQ queues."""
         if self.queue_instances is not None:
             return TaskQueues(queues=self.queue_instances)
@@ -176,32 +174,32 @@ class PostgresQueueOptions(TypedDict, total=False):
 class QueueConfig:
     """SAQ Queue Configuration"""
 
-    dsn: str | None = None
+    dsn: "Optional[str]" = None
     """DSN for connecting to backend. e.g. 'redis://...' or 'postgres://...'.
     """
 
-    broker_instance: Any | None = None
+    broker_instance: "Optional[Any]" = None
     """An instance of a supported saq backend connection..
     """
     name: str = "default"
     """The name of the queue to create."""
     concurrency: int = 10
     """Number of jobs to process concurrently."""
-    broker_options: RedisQueueOptions | PostgresQueueOptions | dict[str, Any] = field(default_factory=dict)
+    broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)
     """Broker-specific options. For Redis or Postgres backends."""
-    tasks: Collection[ReceivesContext | tuple[str, Function] | str] = field(default_factory=list)
+    tasks: "Collection[Union[ReceivesContext, tuple[str, Function], str]]" = field(default_factory=list)
     """Allowed list of functions to execute in this queue."""
-    scheduled_tasks: Collection[CronJob] = field(default_factory=list)
+    scheduled_tasks: "Collection[CronJob]" = field(default_factory=list)
     """Scheduled cron jobs to execute in this queue."""
-    startup: ReceivesContext | str | Collection[ReceivesContext | str] | None = None
+    startup: "Optional[Union[ReceivesContext, str, Collection[Union[ReceivesContext, str]]]]" = None
     """Async callable to call on startup."""
-    shutdown: ReceivesContext | str | Collection[ReceivesContext | str] | None = None
+    shutdown: "Optional[Union[ReceivesContext, str, Collection[Union[ReceivesContext, str]]]]" = None
     """Async callable to call on shutdown."""
-    before_process: ReceivesContext | str | Collection[ReceivesContext | str] | None = None
+    before_process: "Optional[Union[ReceivesContext, str, Collection[Union[ReceivesContext, str]]]]" = None
     """Async callable to call before a job processes."""
-    after_process: ReceivesContext | str | Collection[ReceivesContext | str] | None = None
+    after_process: "Optional[Union[ReceivesContext, str, Collection[Union[ReceivesContext, str]]]]" = None
     """Async callable to call after a job processes."""
-    timers: PartialTimersDict | None = None
+    timers: "Optional[PartialTimersDict]" = None
     """Dict with various timer overrides in seconds
             schedule: how often we poll to schedule jobs
             stats: how often to update stats
@@ -209,7 +207,7 @@ class QueueConfig:
             abort: how often to check if a job is aborted"""
     dequeue_timeout: float = 0
     """How long to wait to dequeue."""
-    multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing"
+    multiprocessing_mode: 'Literal["multiprocessing", "threading"]' = "multiprocessing"
     """Executes with the multiprocessing or threading backend. Multi-processing is recommended and how SAQ is designed to work."""
     separate_process: bool = True
     """Executes as a separate event loop when True.
@@ -236,10 +234,10 @@ class QueueConfig:
         self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]
         self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]
         self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]
-        self._broker_type: Literal["redis", "postgres", "http"] | None = None
-        self._queue_class: type[Queue] | None = None
+        self._broker_type: Optional[Literal["redis", "postgres", "http"]] = None
+        self._queue_class: Optional[type[Queue]] = None
 
-    def get_broker(self) -> Any:
+    def get_broker(self) -> "Any":
         """Get the configured Broker connection.
 
         Returns:
@@ -275,7 +273,7 @@ class QueueConfig:
         return self.broker_instance
 
     @property
-    def broker_type(self) -> Literal["redis", "postgres", "http"]:
+    def broker_type(self) -> 'Literal["redis", "postgres", "http"]':
         """Type of broker to use."""
         if self._broker_type is None and self.broker_instance is not None:
             if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
@@ -292,7 +290,7 @@ class QueueConfig:
         return self._broker_type
 
     @property
-    def queue_class(self) -> type[Queue]:
+    def queue_class(self) -> "type[Queue]":
         """Type of queue to use."""
         if self._queue_class is None and self.broker_instance is not None:
             if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
@@ -315,7 +313,9 @@ class QueueConfig:
         return self._queue_class
 
     @staticmethod
-    def _get_or_import_task(task_or_import_string: str | tuple[str, Function] | ReceivesContext) -> ReceivesContext:
+    def _get_or_import_task(
+        task_or_import_string: "Union[str, tuple[str, Function], ReceivesContext]",
+    ) -> "ReceivesContext":
         """Get or import a task.
 
         Args:

@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from click import Group
@@ -11,7 +9,7 @@ if TYPE_CHECKING:
     from litestar_saq.plugin import SAQPlugin
 
 
-def build_cli_app() -> Group:  # noqa: C901
+def build_cli_app() -> "Group":  # noqa: C901
     import asyncio
     import multiprocessing
     import platform
@@ -47,11 +45,11 @@ def build_cli_app() -> Group:  # noqa: C901
     @option("-v", "--verbose", help="Enable verbose logging.", is_flag=True, default=None, type=bool, required=False)
     @option("-d", "--debug", help="Enable debugging.", is_flag=True, default=None, type=bool, required=False)
     def run_worker(  # pyright: ignore[reportUnusedFunction]
-        app: Litestar,
+        app: "Litestar",
         workers: int,
-        queues: tuple[str, ...] | None,
-        verbose: bool | None,
-        debug: bool | None,
+        queues: "Optional[tuple[str, ...]]",
+        verbose: "Optional[bool]",
+        debug: "Optional[bool]",
     ) -> None:
         """Run the API server."""
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
@@ -106,11 +104,11 @@ def build_cli_app() -> Group:  # noqa: C901
     @option("-v", "--verbose", help="Enable verbose logging.", is_flag=True, default=None, type=bool, required=False)
     @option("-d", "--debug", help="Enable debugging.", is_flag=True, default=None, type=bool, required=False)
     def worker_status(  # pyright: ignore[reportUnusedFunction]
-        app: Litestar,
-        verbose: bool | None,
-        debug: bool | None,
+        app: "Litestar",
+        verbose: "Optional[bool]",
+        debug: "Optional[bool]",
     ) -> None:
-        """Run the API server."""
+        """Check the status of currently configured workers and queues."""
         console.rule("[yellow]Checking SAQ worker status[/]", align="left")
         if app.logging_config is not None:
             app.logging_config.configure()
@@ -122,13 +120,13 @@ def build_cli_app() -> Group:  # noqa: C901
     return background_worker_group
 
 
-def limited_start_up(plugin: SAQPlugin, queues: list[str]) -> None:
+def limited_start_up(plugin: "SAQPlugin", queues: "list[str]") -> None:
     """Reset the workers and include only the specified queues."""
     plugin.remove_workers()
     plugin.config.filter_delete_queues(queues)
 
 
-def get_saq_plugin(app: Litestar) -> SAQPlugin:
+def get_saq_plugin(app: "Litestar") -> "SAQPlugin":
     """Retrieve a SAQ plugin from the Litestar application's plugins.
 
     This function attempts to find a SAQ plugin instance.
@@ -148,7 +146,7 @@ def get_saq_plugin(app: Litestar) -> SAQPlugin:
     )
 
 
-def show_saq_info(app: Litestar, workers: int, plugin: SAQPlugin) -> None:  # pragma: no cover
+def show_saq_info(app: "Litestar", workers: int, plugin: "SAQPlugin") -> None:  # pragma: no cover
     """Display basic information about the application and its configuration."""
 
     from litestar.cli._utils import _format_is_enabled, console  # pyright: ignore[reportPrivateUsage]
@@ -167,7 +165,7 @@ def show_saq_info(app: Litestar, workers: int, plugin: SAQPlugin) -> None:  # pr
     console.print(table)
 
 
-def run_saq_worker(worker: Worker, logging_config: BaseLoggingConfig | None) -> None:
+def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig]") -> None:
     """Run a worker."""
     import asyncio
 
@@ -175,7 +173,7 @@ def run_saq_worker(worker: Worker, logging_config: BaseLoggingConfig | None) -> 
     if logging_config is not None:
         logging_config.configure()
 
-    async def worker_start(w: Worker) -> None:
+    async def worker_start(w: "Worker") -> None:
         try:
             await w.queue.connect()
             await w.start()
