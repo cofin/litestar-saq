@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.9"
 
 [[package]]
@@ -833,9 +832,8 @@ requires-dist = [
     { name = "hiredis", marker = "extra == 'hiredis'" },
     { name = "litestar", specifier = ">=2.0.1" },
     { name = "psycopg", extras = ["pool", "binary"], marker = "extra == 'psycopg'" },
-    { name = "saq", specifier = ">=0.14.1" },
+    { name = "saq", specifier = "==0.22.5" },
 ]
-provides-extras = ["hiredis", "psycopg"]
 
 [package.metadata.requires-dev]
 build = [{ name = "bump-my-version" }]
@@ -1806,14 +1804,14 @@ wheels = [
 
 [[package]]
 name = "saq"
-version = "0.22.4"
+version = "0.22.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "croniter" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/73/a5/d7876116c557f0910dea88bd7c849e5cfabc191ef1668ea26b168d031779/saq-0.22.4.tar.gz", hash = "sha256:e745f6bee6e224545778fb0f008a34df6f3a9524fee2b06063387d5b10a02c3c", size = 57452 }
+sdist = { url = "https://files.pythonhosted.org/packages/85/da/17910feecb63d0448c027726c9cfaba61b7e80db061ff70998d57fd6388d/saq-0.22.5.tar.gz", hash = "sha256:9a786a77ebc27c6af78e1b7749a1511b6277d5df8ac89942b1a5a0d4296c71d6", size = 57627 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/3c/5a2fdbbd8e5ea8575c8b3277bf041a0234f8acf319fed8f240ca9be26dc5/saq-0.22.4-py3-none-any.whl", hash = "sha256:02a8d7113aad09d0f210f65201ceef9fd6b2e6a99711f6f8af987a44de2b4ac6", size = 60507 },
+    { url = "https://files.pythonhosted.org/packages/cb/c4/47dcc1d71d29bd7985c07d2141e43bef80ed0197b1bf7faa60f58ca6628f/saq-0.22.5-py3-none-any.whl", hash = "sha256:e206b4f55f85a0598cccee34db08c34df65c03dc149c4172b4222a212ccb854c", size = 60729 },
 ]
 
 [[package]]
