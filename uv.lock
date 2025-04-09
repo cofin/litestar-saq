@@ -832,7 +832,7 @@ requires-dist = [
     { name = "hiredis", marker = "extra == 'hiredis'" },
     { name = "litestar", specifier = ">=2.0.1" },
     { name = "psycopg", extras = ["pool", "binary"], marker = "extra == 'psycopg'" },
-    { name = "saq", specifier = "==0.22.5" },
+    { name = "saq", specifier = "<=0.22.5" },
 ]
 
 [package.metadata.requires-dev]
