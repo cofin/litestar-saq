@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.9"
 
 [[package]]
@@ -762,7 +763,7 @@ wheels = [
 
 [[package]]
 name = "litestar-saq"
-version = "0.5.0"
+version = "0.5.1"
 source = { editable = "." }
 dependencies = [
     { name = "litestar" },
@@ -834,6 +835,7 @@ requires-dist = [
     { name = "psycopg", extras = ["pool", "binary"], marker = "extra == 'psycopg'" },
     { name = "saq", specifier = "<=0.22.5" },
 ]
+provides-extras = ["hiredis", "psycopg"]
 
 [package.metadata.requires-dev]
 build = [{ name = "bump-my-version" }]
