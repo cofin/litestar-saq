@@ -199,7 +199,6 @@ lint.ignore = [
   "ISC001",
   "COM812",
   "FA100",    # use __future__ import annotations
-  "PLC045"   # import should be at the top of the file
 ]
 lint.select = ["ALL"]
 # Allow unused variables when underscore-prefixed.

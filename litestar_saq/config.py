@@ -43,7 +43,7 @@ def _get_static_files() -> Path:
 class TaskQueues:
     """Task queues."""
 
-    queues: "Mapping[str, Queue]" = field(default_factory=dict)
+    queues: "Mapping[str, Queue]" = field(default_factory=dict)  # pyright: ignore  # noqa: PGH003
 
     def get(self, name: str) -> "Queue":
         """Get a queue by name.
@@ -69,7 +69,7 @@ class TaskQueues:
 class SAQConfig:
     """SAQ Configuration."""
 
-    queue_configs: "Collection[QueueConfig]" = field(default_factory=list)
+    queue_configs: "Collection[QueueConfig]" = field(default_factory=list)  # pyright: ignore  # noqa: PGH003
     """Configuration for Queues"""
 
     queue_instances: "Optional[Mapping[str, Queue]]" = None
@@ -148,7 +148,7 @@ class SAQConfig:
                 load=self.json_deserializer,
                 **c.broker_options,  # pyright: ignore[reportArgumentType]
             )
-            self.queue_instances[c.name]._is_pool_provided = False  # pyright: ignore  # noqa: PGH003, SLF001
+            self.queue_instances[c.name]._is_pool_provided = False  # type: ignore  # noqa: PGH003, SLF001
         return TaskQueues(queues=self.queue_instances)
 
 
@@ -195,11 +195,11 @@ class QueueConfig:
     """The name of the queue to create."""
     concurrency: int = 10
     """Number of jobs to process concurrently."""
-    broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)
+    broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)  # pyright: ignore  # noqa: PGH003
     """Broker-specific options. For Redis or Postgres backends."""
-    tasks: "Collection[Union[ReceivesContext, tuple[str, Function], str]]" = field(default_factory=list)
+    tasks: "Collection[Union[ReceivesContext, tuple[str, Function], str]]" = field(default_factory=list)  # pyright: ignore  # noqa: PGH003
     """Allowed list of functions to execute in this queue."""
-    scheduled_tasks: "Collection[CronJob]" = field(default_factory=list)
+    scheduled_tasks: "Collection[CronJob]" = field(default_factory=list)  # pyright: ignore  # noqa: PGH003
     """Scheduled cron jobs to execute in this queue."""
     cron_tz: "tzinfo" = timezone.utc
     """Timezone for cron jobs."""
@@ -248,10 +248,10 @@ class QueueConfig:
             self.before_process = [self.before_process]
         if self.after_process is not None and not isinstance(self.after_process, Collection):
             self.after_process = [self.after_process]
-        self.startup = [self._get_or_import_task(task) for task in self.startup or []]
-        self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]
-        self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]
-        self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]
+        self.startup = [self._get_or_import_task(task) for task in self.startup or []]  # pyright: ignore  # noqa: PGH003
+        self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]  # pyright: ignore  # noqa: PGH003
+        self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]  # pyright: ignore  # noqa: PGH003
+        self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]  # pyright: ignore  # noqa: PGH003
         self._broker_type: Optional[Literal["redis", "postgres", "http"]] = None
         self._queue_class: Optional[type[Queue]] = None
 
@@ -345,5 +345,5 @@ class QueueConfig:
         if isinstance(task_or_import_string, str):
             return cast("ReceivesContext", import_string(task_or_import_string))
         if isinstance(task_or_import_string, tuple):
-            return task_or_import_string[1]
+            return task_or_import_string[1]  # pyright: ignore  # noqa: PGH003
         return task_or_import_string

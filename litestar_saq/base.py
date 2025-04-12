@@ -27,7 +27,7 @@ class CronJob(SaqCronJob):
     """Cron Job Details"""
 
     function: "Union[Function, str]"  # type: ignore[assignment]
-    meta: "dict[str, Any]" = field(default_factory=dict)
+    meta: "dict[str, Any]" = field(default_factory=dict)  # pyright: ignore  # noqa: PGH003
 
     def __post_init__(self) -> None:
         self.function = self._get_or_import_function(self.function)  # pyright: ignore[reportIncompatibleMethodOverride]
@@ -47,7 +47,7 @@ class Worker(SaqWorker):
         queue: "Queue",
         functions: "Collection[Union[Function, tuple[str, Function]]]",
         *,
-        id: "Optional[str]" = None,
+        id: "Optional[str]" = None,  # noqa: A002
         concurrency: int = 10,
         cron_jobs: "Optional[Collection[CronJob]]" = None,
         cron_tz: "tzinfo" = timezone.utc,
