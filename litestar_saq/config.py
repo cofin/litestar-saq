@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator, Collection, Mapping
 from dataclasses import dataclass, field
+from datetime import timezone, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Optional, TypedDict, TypeVar, Union, cast
 
@@ -8,8 +9,9 @@ from litestar.serialization import decode_json, encode_json
 from litestar.utils.module_loader import import_string, module_to_os_path
 from saq.queue.base import Queue
 from saq.types import DumpType, LoadType, PartialTimersDict, QueueInfo, ReceivesContext, WorkerInfo
+from typing_extensions import NotRequired
 
-from litestar_saq.base import CronJob, Job, Worker
+from litestar_saq.base import CronJob, Job, JsonDict, Worker
 
 if TYPE_CHECKING:
     from typing import Any
@@ -28,6 +30,7 @@ def serializer(value: "Any") -> str:
 
     Returns:
         JSON string.
+
     """
     return encode_json(value).decode("utf-8")
 
@@ -53,6 +56,7 @@ class TaskQueues:
 
         Raises:
             ImproperlyConfiguredException: If the queue does not exist.
+
         """
         queue = self.queues.get(name)
         if queue is not None:
@@ -144,30 +148,34 @@ class SAQConfig:
                 load=self.json_deserializer,
                 **c.broker_options,  # pyright: ignore[reportArgumentType]
             )
+            self.queue_instances[c.name]._is_pool_provided = False  # pyright: ignore  # noqa: PGH003, SLF001
         return TaskQueues(queues=self.queue_instances)
 
 
 class RedisQueueOptions(TypedDict, total=False):
     """Options for the Redis backend."""
 
-    max_concurrent_ops: int
+    max_concurrent_ops: NotRequired[int]
     """Maximum concurrent operations. (default 15)
         This throttles calls to `enqueue`, `job`, and `abort` to prevent the Queue
         from consuming too many Redis connections."""
+    swept_error_message: NotRequired[str]
 
 
 class PostgresQueueOptions(TypedDict, total=False):
     """Options for the Postgres backend."""
 
-    versions_table: str
-    jobs_table: str
-    stats_table: str
-    min_size: int
-    max_size: int
-    poll_interval: float
-    saq_lock_keyspace: int
-    job_lock_keyspace: int
-    priorities: tuple[int, int]
+    versions_table: NotRequired[str]
+    jobs_table: NotRequired[str]
+    stats_table: NotRequired[str]
+    min_size: NotRequired[int]
+    max_size: NotRequired[int]
+    poll_interval: NotRequired[float]
+    saq_lock_keyspace: NotRequired[int]
+    job_lock_keyspace: NotRequired[int]
+    job_lock_sweep: NotRequired[bool]
+    priorities: NotRequired[tuple[int, int]]
+    swept_error_message: NotRequired[str]
 
 
 @dataclass
@@ -181,6 +189,8 @@ class QueueConfig:
     broker_instance: "Optional[Any]" = None
     """An instance of a supported saq backend connection..
     """
+    id: "Optional[str]" = None
+    """An optional ID to supply for the worker."""
     name: str = "default"
     """The name of the queue to create."""
     concurrency: int = 10
@@ -191,6 +201,8 @@ class QueueConfig:
     """Allowed list of functions to execute in this queue."""
     scheduled_tasks: "Collection[CronJob]" = field(default_factory=list)
     """Scheduled cron jobs to execute in this queue."""
+    cron_tz: "tzinfo" = timezone.utc
+    """Timezone for cron jobs."""
     startup: "Optional[Union[ReceivesContext, str, Collection[Union[ReceivesContext, str]]]]" = None
     """Async callable to call on startup."""
     shutdown: "Optional[Union[ReceivesContext, str, Collection[Union[ReceivesContext, str]]]]" = None
@@ -207,6 +219,12 @@ class QueueConfig:
             abort: how often to check if a job is aborted"""
     dequeue_timeout: float = 0
     """How long to wait to dequeue."""
+    burst: bool = False
+    """If True, the worker will process jobs in burst mode."""
+    max_burst_jobs: "Optional[int]" = None
+    """The maximum number of jobs to process in burst mode."""
+    metadata: "Optional[JsonDict]" = None
+    """Arbitrary data to pass to the worker which it will register with saq."""
     multiprocessing_mode: 'Literal["multiprocessing", "threading"]' = "multiprocessing"
     """Executes with the multiprocessing or threading backend. Multi-processing is recommended and how SAQ is designed to work."""
     separate_process: bool = True

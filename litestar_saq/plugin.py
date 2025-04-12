@@ -65,9 +65,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
 
         from litestar_saq.controllers import build_controller
 
-        app_config.dependencies.update(
-            {self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues)}
-        )
+        app_config.dependencies.update({
+            self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues)
+        })
         if self._config.web_enabled:
             app_config.route_handlers.append(
                 create_static_files_router(
@@ -98,8 +98,10 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         self._worker_instances = {
             queue_config.name: Worker(
                 queue=self.get_queue(queue_config.name),
+                id=queue_config.id,
                 functions=cast("Collection[Function]", queue_config.tasks),
                 cron_jobs=queue_config.scheduled_tasks,
+                cron_tz=queue_config.cron_tz,
                 concurrency=queue_config.concurrency,
                 startup=cast("Collection[ReceivesContext]", queue_config.startup),
                 shutdown=cast("Collection[ReceivesContext]", queue_config.shutdown),
@@ -108,6 +110,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 timers=queue_config.timers,
                 dequeue_timeout=queue_config.dequeue_timeout,
                 separate_process=queue_config.separate_process,
+                burst=queue_config.burst,
+                max_burst_jobs=queue_config.max_burst_jobs,
+                metadata=queue_config.metadata,
             )
             for queue_config in self._config.queue_configs
         }
