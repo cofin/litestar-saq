@@ -17,7 +17,7 @@ classifiers = [
 ]
 dependencies = [
  "litestar>=2.0.1",
- "saq>=0.14.1",
+ "saq<=0.22.5",
 ]
 description = "Litestar integration for SAQ"
 keywords = ["litestar", "saq"]
