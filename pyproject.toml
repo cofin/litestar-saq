@@ -17,7 +17,7 @@ classifiers = [
 ]
 dependencies = [
  "litestar>=2.0.1",
- "saq<=0.22.5",
+ "saq>=0.22.5",
 ]
 description = "Litestar integration for SAQ"
 keywords = ["litestar", "saq"]
@@ -198,7 +198,7 @@ lint.ignore = [
   "PERF203", # ignore for now; investigate
   "ISC001",
   "COM812",
-  "FA100"    # use __future__ import annotations
+  "FA100",    # use __future__ import annotations
 ]
 lint.select = ["ALL"]
 # Allow unused variables when underscore-prefixed.

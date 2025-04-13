@@ -98,8 +98,10 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         self._worker_instances = {
             queue_config.name: Worker(
                 queue=self.get_queue(queue_config.name),
+                id=queue_config.id,
                 functions=cast("Collection[Function]", queue_config.tasks),
                 cron_jobs=queue_config.scheduled_tasks,
+                cron_tz=queue_config.cron_tz,
                 concurrency=queue_config.concurrency,
                 startup=cast("Collection[ReceivesContext]", queue_config.startup),
                 shutdown=cast("Collection[ReceivesContext]", queue_config.shutdown),
@@ -108,6 +110,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 timers=queue_config.timers,
                 dequeue_timeout=queue_config.dequeue_timeout,
                 separate_process=queue_config.separate_process,
+                burst=queue_config.burst,
+                max_burst_jobs=queue_config.max_burst_jobs,
+                metadata=queue_config.metadata,
             )
             for queue_config in self._config.queue_configs
         }
@@ -128,7 +133,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         import multiprocessing
         import platform
 
-        from litestar.cli._utils import console
+        from litestar.cli._utils import console  # pyright: ignore  # noqa: PGH003
 
         from litestar_saq.cli import run_saq_worker
 
@@ -186,7 +191,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             timeout: Maximum time to wait for graceful shutdown in seconds
         """
         # Send SIGTERM to all processes
-        from litestar.cli._utils import console
+        from litestar.cli._utils import console  # pyright: ignore  # noqa: PGH003
 
         for p in processes:
             if p.is_alive():

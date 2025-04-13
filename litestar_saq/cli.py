@@ -16,7 +16,7 @@ def build_cli_app() -> "Group":  # noqa: C901
     from typing import cast
 
     from click import IntRange, group, option
-    from litestar.cli._utils import LitestarGroup, console
+    from litestar.cli._utils import LitestarGroup, console  # pyright: ignore  # noqa: PGH003
 
     @group(cls=LitestarGroup, name="workers", no_args_is_help=True)
     def background_worker_group() -> None:
@@ -149,7 +149,7 @@ def get_saq_plugin(app: "Litestar") -> "SAQPlugin":
 def show_saq_info(app: "Litestar", workers: int, plugin: "SAQPlugin") -> None:  # pragma: no cover
     """Display basic information about the application and its configuration."""
 
-    from litestar.cli._utils import _format_is_enabled, console  # pyright: ignore[reportPrivateUsage]
+    from litestar.cli._utils import _format_is_enabled, console  # pyright: ignore  # noqa: PGH003
     from rich.table import Table
     from saq import __version__ as saq_version
 
