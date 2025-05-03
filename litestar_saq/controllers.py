@@ -45,8 +45,15 @@ def build_controller(  # noqa: C901
             summary="Queue List",
             description="List configured worker queues.",
         )
-        async def queue_list(self, task_queues: "TaskQueues") -> "dict[str, list[QueueInfo]]":
-            """Get Worker queues."""
+        async def queue_list(self, task_queues: "TaskQueues") -> "dict[str, list[QueueInfo]]":  # noqa: PLR6301
+            """Get Worker queues.
+
+            Args:
+                task_queues: The task queues.
+
+            Returns:
+                The worker queues.
+            """
             return {"queues": [await queue.info() for queue in task_queues.queues.values()]}
 
         @get(
@@ -58,8 +65,19 @@ def build_controller(  # noqa: C901
             summary="Queue Detail",
             description="List queue details.",
         )
-        async def queue_detail(self, task_queues: "TaskQueues", queue_id: str) -> "dict[str, QueueInfo]":
-            """Get queue information."""
+        async def queue_detail(self, task_queues: "TaskQueues", queue_id: str) -> "dict[str, QueueInfo]":  # noqa: PLR6301
+            """Get queue information.
+
+            Args:
+                task_queues: The task queues.
+                queue_id: The queue ID.
+
+            Raises:
+                NotFoundException: If the queue is not found.
+
+            Returns:
+                The queue information.
+            """
             queue = task_queues.get(queue_id)
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
@@ -75,10 +93,22 @@ def build_controller(  # noqa: C901
             summary="Job Details",
             description="List job details.",
         )
-        async def job_detail(
+        async def job_detail(  # noqa: PLR6301
             self, task_queues: "TaskQueues", queue_id: str, job_id: str
         ) -> "dict[str, dict[str, Any]]":
-            """Get job information."""
+            """Get job information.
+
+            Args:
+                task_queues: The task queues.
+                queue_id: The queue ID.
+                job_id: The job ID.
+
+            Raises:
+                NotFoundException: If the queue or job is not found.
+
+            Returns:
+                The job information.
+            """
             queue = task_queues.get(queue_id)
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
@@ -101,8 +131,20 @@ def build_controller(  # noqa: C901
             description="Retry a failed job..",
             status_code=HTTP_202_ACCEPTED,
         )
-        async def job_retry(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
-            """Retry job."""
+        async def job_retry(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":  # noqa: PLR6301
+            """Retry job.
+
+            Args:
+                task_queues: The task queues.
+                queue_id: The queue ID.
+                job_id: The job ID.
+
+            Raises:
+                NotFoundException: If the queue or job is not found.
+
+            Returns:
+                The job information.
+            """
             queue = task_queues.get(queue_id)
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
@@ -121,8 +163,20 @@ def build_controller(  # noqa: C901
             description="Abort active job.",
             status_code=HTTP_202_ACCEPTED,
         )
-        async def job_abort(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
-            """Abort job."""
+        async def job_abort(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":  # noqa: PLR6301
+            """Abort job.
+
+            Args:
+                task_queues: The task queues.
+                queue_id: The queue ID.
+                job_id: The job ID.
+
+            Raises:
+                NotFoundException: If the queue or job is not found.
+
+            Returns:
+                The job information.
+            """
             queue = task_queues.get(queue_id)
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
@@ -143,8 +197,12 @@ def build_controller(  # noqa: C901
             media_type=MediaType.HTML,
             include_in_schema=False,
         )
-        async def index(self) -> str:
-            """Serve site root."""
+        async def index(self) -> str:  # noqa: PLR6301
+            """Serve site root.
+
+            Returns:
+                The site root.
+            """
             return f"""
             <!DOCTYPE html>
             <html>

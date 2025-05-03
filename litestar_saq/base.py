@@ -27,7 +27,7 @@ class CronJob(SaqCronJob):
     """Cron Job Details"""
 
     function: "Union[Function, str]"  # type: ignore[assignment]
-    meta: "dict[str, Any]" = field(default_factory=dict)  # pyright: ignore  # noqa: PGH003
+    meta: "dict[str, Any]" = field(default_factory=dict)  # pyright: ignore
 
     def __post_init__(self) -> None:
         self.function = self._get_or_import_function(self.function)  # pyright: ignore[reportIncompatibleMethodOverride]

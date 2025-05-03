@@ -43,7 +43,7 @@ def _get_static_files() -> Path:
 class TaskQueues:
     """Task queues."""
 
-    queues: "Mapping[str, Queue]" = field(default_factory=dict)  # pyright: ignore  # noqa: PGH003
+    queues: "Mapping[str, Queue]" = field(default_factory=dict)  # pyright: ignore
 
     def get(self, name: str) -> "Queue":
         """Get a queue by name.
@@ -69,7 +69,7 @@ class TaskQueues:
 class SAQConfig:
     """SAQ Configuration."""
 
-    queue_configs: "Collection[QueueConfig]" = field(default_factory=list)  # pyright: ignore  # noqa: PGH003
+    queue_configs: "Collection[QueueConfig]" = field(default_factory=list)  # pyright: ignore
     """Configuration for Queues"""
 
     queue_instances: "Optional[Mapping[str, Queue]]" = None
@@ -119,7 +119,11 @@ class SAQConfig:
         }
 
     async def provide_queues(self) -> "AsyncGenerator[TaskQueues, None]":
-        """Provide the configured job queues."""
+        """Provide the configured job queues.
+
+        Yields:
+            The configured job queues.
+        """
         queues = self.get_queues()
         for queue in queues.queues.values():
             await queue.connect()
@@ -132,23 +136,27 @@ class SAQConfig:
         if self.queue_instances is not None:
             for queue_name in dict(self.queue_instances):
                 if queue_name not in queues:
-                    del self.queue_instances[queue_name]  # type: ignore  # noqa: PGH003
+                    del self.queue_instances[queue_name]  # type: ignore
 
     def get_queues(self) -> "TaskQueues":
-        """Get the configured SAQ queues."""
+        """Get the configured SAQ queues.
+
+        Returns:
+            The configured job queues.
+        """
         if self.queue_instances is not None:
             return TaskQueues(queues=self.queue_instances)
 
         self.queue_instances = {}
         for c in self.queue_configs:
-            self.queue_instances[c.name] = c.queue_class(  # type: ignore  # noqa: PGH003
+            self.queue_instances[c.name] = c.queue_class(  # type: ignore
                 c.get_broker(),
                 name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
                 load=self.json_deserializer,
                 **c.broker_options,  # pyright: ignore[reportArgumentType]
             )
-            self.queue_instances[c.name]._is_pool_provided = False  # type: ignore  # noqa: PGH003, SLF001
+            self.queue_instances[c.name]._is_pool_provided = False  # type: ignore  # noqa: SLF001
         return TaskQueues(queues=self.queue_instances)
 
 
@@ -170,12 +178,12 @@ class PostgresQueueOptions(TypedDict, total=False):
     stats_table: NotRequired[str]
     min_size: NotRequired[int]
     max_size: NotRequired[int]
-    poll_interval: NotRequired[float]
     saq_lock_keyspace: NotRequired[int]
     job_lock_keyspace: NotRequired[int]
     job_lock_sweep: NotRequired[bool]
     priorities: NotRequired[tuple[int, int]]
     swept_error_message: NotRequired[str]
+    manage_pool_lifecycle: NotRequired[bool]
 
 
 @dataclass
@@ -195,11 +203,11 @@ class QueueConfig:
     """The name of the queue to create."""
     concurrency: int = 10
     """Number of jobs to process concurrently."""
-    broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)  # pyright: ignore  # noqa: PGH003
+    broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)  # pyright: ignore
     """Broker-specific options. For Redis or Postgres backends."""
-    tasks: "Collection[Union[ReceivesContext, tuple[str, Function], str]]" = field(default_factory=list)  # pyright: ignore  # noqa: PGH003
+    tasks: "Collection[Union[ReceivesContext, tuple[str, Function], str]]" = field(default_factory=list)  # pyright: ignore
     """Allowed list of functions to execute in this queue."""
-    scheduled_tasks: "Collection[CronJob]" = field(default_factory=list)  # pyright: ignore  # noqa: PGH003
+    scheduled_tasks: "Collection[CronJob]" = field(default_factory=list)  # pyright: ignore
     """Scheduled cron jobs to execute in this queue."""
     cron_tz: "tzinfo" = timezone.utc
     """Timezone for cron jobs."""
@@ -232,7 +240,6 @@ class QueueConfig:
             Set it False to execute within the Litestar application."""
 
     def __post_init__(self) -> None:
-        """Post initialization."""
         if self.dsn and self.broker_instance:
             msg = "Cannot specify both `dsn` and `broker_instance`"
             raise ImproperlyConfiguredException(msg)
@@ -248,15 +255,18 @@ class QueueConfig:
             self.before_process = [self.before_process]
         if self.after_process is not None and not isinstance(self.after_process, Collection):
             self.after_process = [self.after_process]
-        self.startup = [self._get_or_import_task(task) for task in self.startup or []]  # pyright: ignore  # noqa: PGH003
-        self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]  # pyright: ignore  # noqa: PGH003
-        self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]  # pyright: ignore  # noqa: PGH003
-        self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]  # pyright: ignore  # noqa: PGH003
+        self.startup = [self._get_or_import_task(task) for task in self.startup or []]  # pyright: ignore
+        self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]  # pyright: ignore
+        self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]  # pyright: ignore
+        self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]  # pyright: ignore
         self._broker_type: Optional[Literal["redis", "postgres", "http"]] = None
         self._queue_class: Optional[type[Queue]] = None
 
     def get_broker(self) -> "Any":
         """Get the configured Broker connection.
+
+        Raises:
+            ImproperlyConfiguredException: If the broker type is invalid.
 
         Returns:
             Dictionary of queues.
@@ -292,7 +302,14 @@ class QueueConfig:
 
     @property
     def broker_type(self) -> 'Literal["redis", "postgres", "http"]':
-        """Type of broker to use."""
+        """Type of broker to use.
+
+        Raises:
+            ImproperlyConfiguredException: If the broker type is invalid.
+
+        Returns:
+            The broker type.
+        """
         if self._broker_type is None and self.broker_instance is not None:
             if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
                 self._broker_type = "postgres"
@@ -308,8 +325,26 @@ class QueueConfig:
         return self._broker_type
 
     @property
+    def _broker_options(self) -> "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]":
+        """Broker-specific options.
+
+        Returns:
+            The broker options.
+        """
+        if self._broker_type == "postgres" and "manage_pool_lifecycle" not in self.broker_options:
+            self.broker_options["manage_pool_lifecycle"] = True  # pyright: ignore
+        return self.broker_options
+
+    @property
     def queue_class(self) -> "type[Queue]":
-        """Type of queue to use."""
+        """Type of queue to use.
+
+        Raises:
+            ImproperlyConfiguredException: If the queue class is invalid.
+
+        Returns:
+            The queue class.
+        """
         if self._queue_class is None and self.broker_instance is not None:
             if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
                 from saq.queue.postgres import PostgresQueue
@@ -345,5 +380,5 @@ class QueueConfig:
         if isinstance(task_or_import_string, str):
             return cast("ReceivesContext", import_string(task_or_import_string))
         if isinstance(task_or_import_string, tuple):
-            return task_or_import_string[1]  # pyright: ignore  # noqa: PGH003
+            return task_or_import_string[1]  # pyright: ignore
         return task_or_import_string
