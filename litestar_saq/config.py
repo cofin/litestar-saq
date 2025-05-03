@@ -154,7 +154,7 @@ class SAQConfig:
                 name=c.name,  # pyright: ignore[reportCallIssue]
                 dump=self.json_serializer,
                 load=self.json_deserializer,
-                **c.broker_options,  # pyright: ignore[reportArgumentType]
+                **c._broker_options,  # pyright: ignore[reportArgumentType,reportPrivateUsage]  # noqa: SLF001
             )
             self.queue_instances[c.name]._is_pool_provided = False  # type: ignore  # noqa: SLF001
         return TaskQueues(queues=self.queue_instances)
