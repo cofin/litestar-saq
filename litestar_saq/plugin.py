@@ -58,6 +58,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
 
         Args:
             app_config: The :class:`AppConfig <.config.app.AppConfig>` instance.
+
+        Returns:
+            The :class:`AppConfig <.config.app.AppConfig>` instance.
         """
 
         from litestar.di import Provide
@@ -133,7 +136,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         import multiprocessing
         import platform
 
-        from litestar.cli._utils import console  # pyright: ignore  # noqa: PGH003
+        from litestar.cli._utils import console  # pyright: ignore
 
         from litestar_saq.cli import run_saq_worker
 
@@ -191,7 +194,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             timeout: Maximum time to wait for graceful shutdown in seconds
         """
         # Send SIGTERM to all processes
-        from litestar.cli._utils import console  # pyright: ignore  # noqa: PGH003
+        from litestar.cli._utils import console  # pyright: ignore
 
         for p in processes:
             if p.is_alive():

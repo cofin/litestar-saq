@@ -16,7 +16,7 @@ def build_cli_app() -> "Group":  # noqa: C901
     from typing import cast
 
     from click import IntRange, group, option
-    from litestar.cli._utils import LitestarGroup, console  # pyright: ignore  # noqa: PGH003
+    from litestar.cli._utils import LitestarGroup, console  # pyright: ignore
 
     @group(cls=LitestarGroup, name="workers", no_args_is_help=True)
     def background_worker_group() -> None:
@@ -66,7 +66,7 @@ def build_cli_app() -> "Group":  # noqa: C901
             limited_start_up(plugin, queue_list)
         show_saq_info(app, workers, plugin)
         managed_workers = list(plugin.get_workers().values())
-        _processes: list[multiprocessing.Process] = []
+        processes: list[multiprocessing.Process] = []
         if workers > 1:
             for _ in range(workers - 1):
                 for worker in managed_workers:
@@ -78,13 +78,13 @@ def build_cli_app() -> "Group":  # noqa: C901
                         ),
                     )
                     p.start()
-                    _processes.append(p)
+                    processes.append(p)
 
         if len(managed_workers) > 1:
-            for _ in range(len(managed_workers) - 1):
-                p = multiprocessing.Process(target=run_saq_worker, args=(managed_workers[_], app.logging_config))
+            for j in range(len(managed_workers) - 1):
+                p = multiprocessing.Process(target=run_saq_worker, args=(managed_workers[j + 1], app.logging_config))
                 p.start()
-                _processes.append(p)
+                processes.append(p)
 
         try:
             run_saq_worker(
@@ -131,8 +131,16 @@ def get_saq_plugin(app: "Litestar") -> "SAQPlugin":
 
     This function attempts to find a SAQ plugin instance.
     If plugin is not found, it raises an ImproperlyConfiguredException.
-    """
 
+    Args:
+        app: The Litestar application instance.
+
+    Returns:
+        The SAQ plugin instance.
+
+    Raises:
+        ImproperConfigurationError: If the SAQ plugin is not found.
+    """
     from contextlib import suppress
 
     from litestar_saq.exceptions import ImproperConfigurationError
@@ -149,7 +157,7 @@ def get_saq_plugin(app: "Litestar") -> "SAQPlugin":
 def show_saq_info(app: "Litestar", workers: int, plugin: "SAQPlugin") -> None:  # pragma: no cover
     """Display basic information about the application and its configuration."""
 
-    from litestar.cli._utils import _format_is_enabled, console  # pyright: ignore  # noqa: PGH003
+    from litestar.cli._utils import _format_is_enabled, console  # pyright: ignore
     from rich.table import Table
     from saq import __version__ as saq_version
 

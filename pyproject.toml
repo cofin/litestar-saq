@@ -17,7 +17,7 @@ classifiers = [
 ]
 dependencies = [
  "litestar>=2.0.1",
- "saq>=0.22.5",
+ "saq>=0.24.4",
 ]
 description = "Litestar integration for SAQ"
 keywords = ["litestar", "saq"]
@@ -68,6 +68,7 @@ test = [
   "pytest-xdist",
   "anyio",
   "litestar[jinja,redis,standard]",
+  "psycopg[pool,binary]",
 ]
 
 
@@ -199,6 +200,10 @@ lint.ignore = [
   "ISC001",
   "COM812",
   "FA100",    # use __future__ import annotations
+  "CPY001",   # copyright at the top of the file
+  "PLC0415",  # import at the top of the file
+  "PGH003",   # Use specific rule codes when ignoring type issues
+  "PLC2701",  # ignore for now; investigate
 ]
 lint.select = ["ALL"]
 # Allow unused variables when underscore-prefixed.
@@ -247,6 +252,7 @@ classmethod-decorators = [
   "UP006",
   "SLF001",
   "ERA001",
+
 ]
 "tools/*.py" = [ "PLR0911"]
 

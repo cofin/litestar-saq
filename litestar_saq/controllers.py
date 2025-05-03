@@ -1,3 +1,4 @@
+# ruff: noqa: PLR6301
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -46,7 +47,14 @@ def build_controller(  # noqa: C901
             description="List configured worker queues.",
         )
         async def queue_list(self, task_queues: "TaskQueues") -> "dict[str, list[QueueInfo]]":
-            """Get Worker queues."""
+            """Get Worker queues.
+
+            Args:
+                task_queues: The task queues.
+
+            Returns:
+                The worker queues.
+            """
             return {"queues": [await queue.info() for queue in task_queues.queues.values()]}
 
         @get(
@@ -59,7 +67,18 @@ def build_controller(  # noqa: C901
             description="List queue details.",
         )
         async def queue_detail(self, task_queues: "TaskQueues", queue_id: str) -> "dict[str, QueueInfo]":
-            """Get queue information."""
+            """Get queue information.
+
+            Args:
+                task_queues: The task queues.
+                queue_id: The queue ID.
+
+            Raises:
+                NotFoundException: If the queue is not found.
+
+            Returns:
+                The queue information.
+            """
             queue = task_queues.get(queue_id)
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
@@ -78,7 +97,19 @@ def build_controller(  # noqa: C901
         async def job_detail(
             self, task_queues: "TaskQueues", queue_id: str, job_id: str
         ) -> "dict[str, dict[str, Any]]":
-            """Get job information."""
+            """Get job information.
+
+            Args:
+                task_queues: The task queues.
+                queue_id: The queue ID.
+                job_id: The job ID.
+
+            Raises:
+                NotFoundException: If the queue or job is not found.
+
+            Returns:
+                The job information.
+            """
             queue = task_queues.get(queue_id)
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
@@ -102,7 +133,19 @@ def build_controller(  # noqa: C901
             status_code=HTTP_202_ACCEPTED,
         )
         async def job_retry(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
-            """Retry job."""
+            """Retry job.
+
+            Args:
+                task_queues: The task queues.
+                queue_id: The queue ID.
+                job_id: The job ID.
+
+            Raises:
+                NotFoundException: If the queue or job is not found.
+
+            Returns:
+                The job information.
+            """
             queue = task_queues.get(queue_id)
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
@@ -122,7 +165,19 @@ def build_controller(  # noqa: C901
             status_code=HTTP_202_ACCEPTED,
         )
         async def job_abort(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
-            """Abort job."""
+            """Abort job.
+
+            Args:
+                task_queues: The task queues.
+                queue_id: The queue ID.
+                job_id: The job ID.
+
+            Raises:
+                NotFoundException: If the queue or job is not found.
+
+            Returns:
+                The job information.
+            """
             queue = task_queues.get(queue_id)
             if not queue:
                 msg = f"Could not find the {queue_id} queue"
@@ -134,7 +189,7 @@ def build_controller(  # noqa: C901
         # static site
         @get(
             [
-                url_base,
+                f"{url_base}/",
                 f"{url_base}/queues/{{queue_id:str}}",
                 f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
             ],
@@ -144,7 +199,11 @@ def build_controller(  # noqa: C901
             include_in_schema=False,
         )
         async def index(self) -> str:
-            """Serve site root."""
+            """Serve site root.
+
+            Returns:
+                The site root.
+            """
             return f"""
             <!DOCTYPE html>
             <html>
