@@ -332,7 +332,7 @@ class QueueConfig:
             The broker options.
         """
         if self._broker_type == "postgres" and "manage_pool_lifecycle" not in self.broker_options:
-            self.broker_options["manage_pool_lifecycle"] = True  # pyright: ignore
+            self.broker_options["manage_pool_lifecycle"] = True  # type: ignore[typeddict-unknown-key]
         return self.broker_options
 
     @property

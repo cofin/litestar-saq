@@ -68,9 +68,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
 
         from litestar_saq.controllers import build_controller
 
-        app_config.dependencies.update({
-            self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues)
-        })
+        app_config.dependencies.update(
+            {self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues)}
+        )
         if self._config.web_enabled:
             app_config.route_handlers.append(
                 create_static_files_router(

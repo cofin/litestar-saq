@@ -1,3 +1,4 @@
+# ruff: noqa: PLR6301
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -45,7 +46,7 @@ def build_controller(  # noqa: C901
             summary="Queue List",
             description="List configured worker queues.",
         )
-        async def queue_list(self, task_queues: "TaskQueues") -> "dict[str, list[QueueInfo]]":  # noqa: PLR6301
+        async def queue_list(self, task_queues: "TaskQueues") -> "dict[str, list[QueueInfo]]":
             """Get Worker queues.
 
             Args:
@@ -65,7 +66,7 @@ def build_controller(  # noqa: C901
             summary="Queue Detail",
             description="List queue details.",
         )
-        async def queue_detail(self, task_queues: "TaskQueues", queue_id: str) -> "dict[str, QueueInfo]":  # noqa: PLR6301
+        async def queue_detail(self, task_queues: "TaskQueues", queue_id: str) -> "dict[str, QueueInfo]":
             """Get queue information.
 
             Args:
@@ -93,7 +94,7 @@ def build_controller(  # noqa: C901
             summary="Job Details",
             description="List job details.",
         )
-        async def job_detail(  # noqa: PLR6301
+        async def job_detail(
             self, task_queues: "TaskQueues", queue_id: str, job_id: str
         ) -> "dict[str, dict[str, Any]]":
             """Get job information.
@@ -131,7 +132,7 @@ def build_controller(  # noqa: C901
             description="Retry a failed job..",
             status_code=HTTP_202_ACCEPTED,
         )
-        async def job_retry(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":  # noqa: PLR6301
+        async def job_retry(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
             """Retry job.
 
             Args:
@@ -163,7 +164,7 @@ def build_controller(  # noqa: C901
             description="Abort active job.",
             status_code=HTTP_202_ACCEPTED,
         )
-        async def job_abort(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":  # noqa: PLR6301
+        async def job_abort(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
             """Abort job.
 
             Args:
@@ -197,7 +198,7 @@ def build_controller(  # noqa: C901
             media_type=MediaType.HTML,
             include_in_schema=False,
         )
-        async def index(self) -> str:  # noqa: PLR6301
+        async def index(self) -> str:
             """Serve site root.
 
             Returns:
