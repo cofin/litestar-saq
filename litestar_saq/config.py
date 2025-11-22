@@ -231,6 +231,10 @@ class QueueConfig:
     """If True, the worker will process jobs in burst mode."""
     max_burst_jobs: "Optional[int]" = None
     """The maximum number of jobs to process in burst mode."""
+    shutdown_grace_period_s: "Optional[int]" = None
+    """How long to wait for jobs to finish before sending cancellation signals."""
+    cancellation_hard_deadline_s: float = 1.0
+    """How long to wait for a job to finish after sending a cancellation signal"""
     metadata: "Optional[JsonDict]" = None
     """Arbitrary data to pass to the worker which it will register with saq."""
     multiprocessing_mode: 'Literal["multiprocessing", "threading"]' = "multiprocessing"

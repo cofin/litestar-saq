@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.9"
 
 [[package]]
@@ -837,7 +837,7 @@ requires-dist = [
     { name = "hiredis", marker = "extra == 'hiredis'" },
     { name = "litestar", specifier = ">=2.0.1" },
     { name = "psycopg", extras = ["pool", "binary"], marker = "extra == 'psycopg'" },
-    { name = "saq", specifier = ">=0.24.4" },
+    { name = "saq", specifier = ">=0.26.0" },
 ]
 provides-extras = ["hiredis", "psycopg"]
 
@@ -1839,14 +1839,14 @@ wheels = [
 
 [[package]]
 name = "saq"
-version = "0.24.4"
+version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "croniter" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/7b/8cf4ae95cb601155453bbcbea2b9eb1dd567a7a9507d1e88bf1e90bc28cc/saq-0.24.4.tar.gz", hash = "sha256:9ad8a0a0a3317d68525adc443aedf85d9e9da90bbb1e76b71b2341dc59ac66b2", size = 57980, upload-time = "2025-05-01T06:30:22.611Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/a1/772f9d4b56f0bfef691005a4f1fe5aac18973dfa339efe8a3e0d260867d6/saq-0.26.0.tar.gz", hash = "sha256:2b4cceda3f8f39d0acd10c46d0e12c8f2f7b1e38ae1eab6260abde45ee7f7af2", size = 59568, upload-time = "2025-10-14T02:35:01.059Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6b/5d/996bb72c8abd881e510005bb409f264f62fc83dba672fa4c8a7ca0c50122/saq-0.24.4-py3-none-any.whl", hash = "sha256:96022d4d3042d325151515685ddd83efb784e41b023d3303ae410ec454e1302a", size = 60935, upload-time = "2025-05-01T06:30:21.417Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/18/42ac00417607c6cea8b5231c7556c52d62cf43b868c17405bf768407266d/saq-0.26.0-py3-none-any.whl", hash = "sha256:3d8bb499dc59c6f0e942f98a7c1bab86571d07f2898b544ea35c7d24c877f067", size = 62810, upload-time = "2025-10-14T02:34:58.605Z" },
 ]
 
 [[package]]
