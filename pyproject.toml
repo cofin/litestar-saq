@@ -69,6 +69,7 @@ test = [
   "anyio",
   "litestar[jinja,redis,standard]",
   "psycopg[pool,binary]",
+  "sniffio"
 ]
 
 
@@ -112,6 +113,7 @@ addopts = ["-q", "-ra"]
 filterwarnings = [
   "ignore::DeprecationWarning:pkg_resources",
   "ignore::DeprecationWarning:xdist.*",
+  "ignore::PendingDeprecationWarning:rich_click.*",
 ]
 minversion = "6.0"
 testpaths = ["tests"]

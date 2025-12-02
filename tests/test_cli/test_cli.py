@@ -17,7 +17,7 @@ async def test_basic_command(
     redis: Redis,
 ) -> None:
     app_file = create_app_file("command_test_app.py", content=APP_DEFAULT_CONFIG_FILE_CONTENT)
-    result = runner.invoke(root_command, ["--app", f"{app_file.stem}:app", "workers"])
+    result = runner.invoke(root_command, ["--app", f"{app_file.stem}:app", "workers", "status"])
 
-    assert not result.exception
-    assert "Manage background task workers." in result.output
+    assert result.exit_code == 0
+    assert "Checking SAQ worker status" in result.output

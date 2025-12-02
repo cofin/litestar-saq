@@ -4,6 +4,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 from redis.asyncio import Redis
+import warnings
+
+# Suppress rich-click pending deprecations triggered by upstream Litestar CLI defaults
+warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
