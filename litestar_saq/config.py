@@ -1,4 +1,6 @@
 # ruff: noqa: BLE001
+# pyright: reportMissingImports=false
+# mypy: disable-error-code="import-not-found"
 from collections.abc import AsyncGenerator, Collection, MutableMapping
 from dataclasses import dataclass, field
 from datetime import timezone, tzinfo
@@ -14,8 +16,10 @@ from saq.types import Context, DumpType, LoadType, PartialTimersDict, QueueInfo,
 from typing_extensions import NotRequired
 
 from litestar_saq.base import CronJob, Job, JsonDict, Worker
+from litestar_saq.typing import OPENTELEMETRY_INSTALLED
 
 if TYPE_CHECKING:
+    from litestar import Litestar
     from litestar.types.callable_types import Guard  # pyright: ignore[reportUnknownVariableType]
     from saq.types import Function
 
@@ -101,6 +105,51 @@ class SAQConfig:
     """Include Queue API endpoints in generated OpenAPI schema"""
     use_server_lifespan: bool = False
     """Utilize the server lifespan hook to run SAQ."""
+
+    # OpenTelemetry configuration
+    enable_otel: "Optional[bool]" = None
+    """Enable OpenTelemetry instrumentation.
+
+    - None (default): Auto-detect - enabled if opentelemetry is installed
+      AND Litestar OpenTelemetryPlugin is present
+    - True: Force enable (raises error if not installed)
+    - False: Force disable
+    """
+    otel_tracer_name: str = "litestar_saq"
+    """Name to use when getting the OpenTelemetry tracer."""
+
+    def should_enable_otel(self, app: "Optional[Litestar]" = None) -> bool:
+        """Determine if OTEL instrumentation should be enabled.
+
+        Args:
+            app: Optional Litestar app to check for OpenTelemetryPlugin.
+
+        Returns:
+            True if OTEL instrumentation should be enabled.
+
+        Raises:
+            ImproperlyConfiguredException: If enable_otel=True but opentelemetry not installed.
+        """
+        if self.enable_otel is True:
+            if not OPENTELEMETRY_INSTALLED:
+                msg = (
+                    "enable_otel=True but opentelemetry is not installed. Install with: pip install litestar-saq[otel]"
+                )
+                raise ImproperlyConfiguredException(msg)
+            return True
+        if self.enable_otel is False:
+            return False
+
+        # Auto-detect: check if OTEL installed AND Litestar plugin present
+        if not OPENTELEMETRY_INSTALLED:
+            return False
+
+        # If app provided, check for Litestar OpenTelemetryPlugin
+        if app is not None:
+            return _has_otel_plugin(app)
+
+        # If no app provided but OTEL installed, enable by default
+        return True
 
     @property
     def signature_namespace(self) -> "dict[str, Any]":
@@ -207,7 +256,7 @@ class QueueConfig:
     """Number of jobs to process concurrently."""
     broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)  # pyright: ignore
     """Broker-specific options. For Redis or Postgres backends."""
-    tasks: "Collection[Union[ReceivesContext[Context], tuple[str, Function[Context]], str]]" = field(  # pyright: ignore[reportUnknownVariableType]
+    tasks: "Collection[Union[Function[Context], tuple[str, Function[Context]], str]]" = field(  # pyright: ignore[reportUnknownVariableType]
         default_factory=list
     )
     """Allowed list of functions to execute in this queue."""
@@ -450,3 +499,22 @@ class QueueConfig:
         if isinstance(task_or_import_string, tuple):
             return task_or_import_string[1]  # pyright: ignore
         return task_or_import_string
+
+
+def _has_otel_plugin(app: "Litestar") -> bool:
+    """Check if Litestar app has OpenTelemetryPlugin configured.
+
+    Args:
+        app: Litestar application instance.
+
+    Returns:
+        True if OpenTelemetryPlugin is present in app plugins.
+    """
+    try:
+        from litestar.plugins.opentelemetry import (
+            OpenTelemetryPlugin,  # pyright: ignore[reportAttributeAccessIssue,reportMissingImports,reportUnknownVariableType]
+        )
+
+        return app.plugins.get(OpenTelemetryPlugin) is not None  # pyright: ignore[reportUnknownArgumentType]
+    except ImportError:
+        return False

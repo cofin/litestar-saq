@@ -37,6 +37,9 @@ async def example_task(_ctx: Context, *, name: str) -> dict[str, str]:
 
     This task demonstrates a simple async operation with timing hooks
     that will automatically log execution duration.
+
+    Returns:
+        Dictionary with greeting message.
     """
     await asyncio.sleep(0.5)  # Simulate work
     return {"message": f"Hello, {name}!"}
@@ -48,13 +51,20 @@ async def slow_task(_ctx: Context, *, duration: float = 2.0) -> dict[str, float]
     Args:
         _ctx: SAQ context.
         duration: How long to sleep (default 2 seconds).
+
+    Returns:
+        Dictionary with the sleep duration.
     """
     await asyncio.sleep(duration)
     return {"slept_for": duration}
 
 
 async def scheduled_task(_ctx: Context) -> dict[str, str]:
-    """Example scheduled task that runs on cron."""
+    """Example scheduled task that runs on cron.
+
+    Returns:
+        Dictionary with execution status.
+    """
     return {"status": "scheduled task executed"}
 
 
@@ -63,7 +73,11 @@ class TaskController(Controller):
 
     @get(path="/queue-info")
     async def get_queue_info(self, task_queues: TaskQueues) -> QueueInfo:
-        """Get information about the task queue."""
+        """Get information about the task queue.
+
+        Returns:
+            Queue information including pending jobs and workers.
+        """
         queue = task_queues.get("default")
         return await queue.info()
 

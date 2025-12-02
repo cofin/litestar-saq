@@ -1,4 +1,7 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownParameterType=false, reportInvalidTypeForm=false, reportUnknownArgumentType=false
+# mypy: disable-error-code="unused-ignore,assignment"
 import asyncio
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import timezone, tzinfo
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
@@ -9,13 +12,34 @@ from saq.job import CronJob as SaqCronJob
 from saq.types import Context
 from saq.worker import Worker as SaqWorker
 
-if TYPE_CHECKING:
-    from collections.abc import Collection
+from litestar_saq.typing import OPENTELEMETRY_INSTALLED, Span, Tracer
 
+if TYPE_CHECKING:
     from saq.queue.base import Queue
     from saq.types import Function, PartialTimersDict, ReceivesContext
 
 JsonDict = dict[str, Any]
+
+# Key used to store span in SAQ context
+_OTEL_SPAN_KEY = "_otel_span"
+
+
+def _normalize_hooks(
+    hooks: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]",
+) -> "list[ReceivesContext[Context]]":
+    """Normalize hooks to a list.
+
+    Args:
+        hooks: Single hook, collection of hooks, or None.
+
+    Returns:
+        List of hooks (empty list if None).
+    """
+    if hooks is None:
+        return []
+    if isinstance(hooks, Collection) and not callable(hooks):
+        return list(hooks)
+    return [hooks]  # type: ignore[list-item]
 
 
 @dataclass
@@ -71,6 +95,9 @@ class Worker(SaqWorker[Context]):
             Prevents zombie tasks from blocking shutdown. Defaults to SAQ's default (1.0s).
         poll_interval: Queue polling interval in seconds. Lower values reduce
             latency but increase CPU/database load. Defaults to backend-specific value.
+        enable_otel: Enable OpenTelemetry instrumentation for job processing.
+        otel_tracer: Optional custom tracer instance. If not provided and enable_otel
+            is True, a default tracer will be created.
     """
 
     def __init__(
@@ -96,9 +123,24 @@ class Worker(SaqWorker[Context]):
         shutdown_grace_period_s: "Optional[int]" = None,
         cancellation_hard_deadline_s: "Optional[float]" = None,
         poll_interval: "Optional[float]" = None,
+        enable_otel: bool = False,
+        otel_tracer: "Optional[Tracer]" = None,
     ) -> None:
         self.separate_process = separate_process
         self.multiprocessing_mode = multiprocessing_mode
+        self._enable_otel = enable_otel and OPENTELEMETRY_INSTALLED
+        self._otel_tracer = otel_tracer
+
+        # Prepend OTEL hooks if enabled
+        otel_before: list[Any] = []
+        otel_after: list[Any] = []
+        if self._enable_otel:
+            otel_before = [self._otel_before_process]
+            otel_after = [self._otel_after_process]
+
+        # Normalize user hooks to lists
+        user_before = _normalize_hooks(before_process)
+        user_after = _normalize_hooks(after_process)
 
         # Build kwargs for super().__init__, only including new params if provided
         kwargs: dict[str, Any] = {
@@ -108,8 +150,8 @@ class Worker(SaqWorker[Context]):
             "cron_tz": cron_tz,
             "startup": startup,
             "shutdown": shutdown,
-            "before_process": before_process,
-            "after_process": after_process,
+            "before_process": otel_before + user_before,
+            "after_process": user_after + otel_after,
             "timers": timers,
             "dequeue_timeout": dequeue_timeout,
             "burst": burst,
@@ -126,6 +168,30 @@ class Worker(SaqWorker[Context]):
             kwargs["poll_interval"] = poll_interval
 
         super().__init__(queue, functions, **kwargs)
+
+    def _get_otel_tracer(self) -> Tracer:
+        """Get the OTEL tracer, creating one if needed."""
+        if self._otel_tracer is None:
+            from litestar_saq.instrumentation import get_tracer
+
+            self._otel_tracer = get_tracer()
+        return self._otel_tracer
+
+    async def _otel_before_process(self, ctx: Context) -> None:
+        """OTEL hook called before job processing - creates span."""
+        from litestar_saq.instrumentation import create_process_span
+
+        tracer = self._get_otel_tracer()
+        span = create_process_span(ctx, tracer, self.queue.name)
+        ctx[_OTEL_SPAN_KEY] = span  # type: ignore[literal-required]
+
+    async def _otel_after_process(self, ctx: Context) -> None:
+        """OTEL hook called after job processing - ends span."""
+        from litestar_saq.instrumentation import end_process_span
+
+        span: Optional[Span] = ctx.get(_OTEL_SPAN_KEY)  # type: ignore[arg-type]
+        error: Optional[BaseException] = ctx.get("exception")
+        end_process_span(ctx, span, error)
 
     def get_structlog_context(self) -> dict[str, Any]:
         """Build context dictionary for structlog binding.
@@ -163,7 +229,7 @@ class Worker(SaqWorker[Context]):
         - separate_process: Whether worker runs in separate process
         - worker_meta_*: Any custom metadata provided in Worker.metadata
         """
-        from litestar_saq.plugin import STRUCTLOG_INSTALLED
+        from litestar_saq.typing import STRUCTLOG_INSTALLED
 
         if not STRUCTLOG_INSTALLED:
             return

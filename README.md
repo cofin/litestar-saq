@@ -6,18 +6,28 @@
 pip install litestar-saq
 ```
 
+For OpenTelemetry support:
+
+```shell
+pip install litestar-saq[otel]
+```
+
 ## Usage
 
 Here is a basic application that demonstrates how to use the plugin.
 
 ```python
-from __future__ import annotations
-
 from litestar import Litestar
-
 from litestar_saq import QueueConfig, SAQConfig, SAQPlugin
 
-saq = SAQPlugin(config=SAQConfig(use_server_lifespan=True, queue_configs=[QueueConfig(name="samples", dsn="redis://localhost:6379/0")]))
+saq = SAQPlugin(
+    config=SAQConfig(
+        use_server_lifespan=True,
+        queue_configs=[
+            QueueConfig(name="samples", dsn="redis://localhost:6379/0")
+        ],
+    )
+)
 app = Litestar(plugins=[saq])
 ```
 
@@ -47,16 +57,59 @@ If you are starting the process for only specific queues and still want to read 
 import os
 from saq import Queue
 
-
 def get_queue_directly(queue_name: str, redis_url: str) -> Queue:
     return Queue.from_url(redis_url, name=queue_name)
 
 redis_url = os.getenv("REDIS_URL")
 queue = get_queue_directly("queue-in-other-process", redis_url)
+
 # Get queue info
 info = await queue.info(jobs=True)
+
 # Enqueue new task
-queue.enqueue(
-    ....
+await queue.enqueue("task_name", arg1="value1")
+```
+
+## Monitored Jobs
+
+For long-running tasks, use the `monitored_job` decorator to automatically send heartbeats and prevent SAQ from marking jobs as stuck:
+
+```python
+from litestar_saq import monitored_job
+
+@monitored_job()  # Auto-calculates interval from job.heartbeat
+async def long_running_task(ctx):
+    await process_large_dataset()
+    return {"status": "complete"}
+
+@monitored_job(interval=30.0)  # Explicit 30-second interval
+async def train_model(ctx, model_id: str):
+    for epoch in range(100):
+        await train_epoch(model)
+    return {"model_id": model_id}
+```
+
+## OpenTelemetry Integration
+
+litestar-saq supports optional OpenTelemetry instrumentation for distributed tracing.
+
+### Configuration
+
+```python
+from litestar_saq import SAQConfig, QueueConfig
+
+config = SAQConfig(
+    queue_configs=[QueueConfig(dsn="redis://localhost:6379/0")],
+    enable_otel=None,  # Auto-detect (default) - enabled if OTEL installed AND Litestar OpenTelemetryPlugin is active
+    # enable_otel=True,  # Force enable (raises error if not installed)
+    # enable_otel=False,  # Force disable
 )
 ```
+
+When enabled, the plugin creates:
+
+- **CONSUMER spans** for job processing
+- **PRODUCER spans** for job enqueue operations
+- **Automatic context propagation** across process boundaries
+
+Spans follow [OpenTelemetry messaging semantic conventions](https://opentelemetry.io/docs/specs/semconv/messaging/) with `messaging.system = "saq"`.

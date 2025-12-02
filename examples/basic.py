@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 class SampleController(Controller):
     @get(path="/samples")
     async def samples_queue_info(self, task_queues: TaskQueues) -> QueueInfo:
+        """Get information about the samples queue.
+
+        Returns:
+            Queue information including pending jobs and workers.
+        """
         queue = task_queues.get("samples")
         return await queue.info()
 
