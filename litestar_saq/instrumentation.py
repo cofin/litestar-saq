@@ -35,7 +35,6 @@ __all__ = [
     "inject_trace_context",
 ]
 
-# Module-level tracer cache
 _tracer: Optional[Tracer] = None
 
 
@@ -129,10 +128,7 @@ def create_process_span(
     if job is None:
         return None
 
-    # Extract parent context from job metadata
     parent_context = extract_trace_context(job)
-
-    # Build attributes following OTEL messaging semantic conventions
     attributes: dict[str, Any] = {
         "messaging.system": "saq",
         "messaging.operation.name": "process",
@@ -143,10 +139,9 @@ def create_process_span(
         attributes["messaging.message.id"] = job.id
     if job.function:
         attributes["saq.job.function"] = job.function
-    if hasattr(job, "attempts") and job.attempts is not None:
+    if job.attempts is not None:
         attributes["saq.job.attempts"] = job.attempts
 
-    # Create span with parent context if available
     span_kind = SpanKind.CONSUMER if OPENTELEMETRY_INSTALLED else None
     return tracer.start_span(
         name=f"{queue_name} process",
@@ -175,10 +170,9 @@ def end_process_span(
 
     try:
         job: Optional[Job] = ctx.get("job")
-        if job and hasattr(job, "status") and job.status is not None:
+        if job and job.status is not None:
             span.set_attribute("saq.job.status", str(job.status))
 
-        # Handle error recording
         if error is not None:
             if OPENTELEMETRY_INSTALLED:
                 span.record_exception(error)
@@ -235,7 +229,6 @@ class InstrumentedQueue:
         Returns:
             The enqueued Job instance.
         """
-        # Build span attributes
         attributes: dict[str, Any] = {
             "messaging.system": "saq",
             "messaging.operation.name": "publish",
@@ -250,17 +243,11 @@ class InstrumentedQueue:
             kind=span_kind,
             attributes=attributes,
         ) as span:
-            # Enqueue the job
             job: Job = await self._queue.enqueue(job_or_func, *args, **kwargs)
-
-            # Inject trace context for consumer
             if job is not None:
                 inject_trace_context(job)
-
-                # Add job ID to span after enqueue
                 if job.id:
                     span.set_attribute("messaging.message.id", job.id)
-
             return job
 
     async def apply(
@@ -296,7 +283,6 @@ class InstrumentedQueue:
             kind=span_kind,
             attributes=attributes,
         ):
-            # Apply the job (enqueue + wait)
             return await self._queue.apply(job_or_func, *args, **kwargs)
 
     def __getattr__(self, name: str) -> Any:

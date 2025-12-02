@@ -140,15 +140,12 @@ class SAQConfig:
         if self.enable_otel is False:
             return False
 
-        # Auto-detect: check if OTEL installed AND Litestar plugin present
         if not OPENTELEMETRY_INSTALLED:
             return False
 
-        # If app provided, check for Litestar OpenTelemetryPlugin
         if app is not None:
             return _has_otel_plugin(app)
 
-        # If no app provided, require explicit opt-in
         return False
 
     @property

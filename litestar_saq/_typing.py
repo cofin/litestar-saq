@@ -29,17 +29,7 @@ __all__ = (
     "trace",
 )
 
-# ============================================================================
-# Structlog detection
-# ============================================================================
 STRUCTLOG_INSTALLED: bool = find_spec("structlog") is not None
-
-# ============================================================================
-# OpenTelemetry stubs and detection
-# ============================================================================
-
-
-# Define stub classes for when OpenTelemetry is not installed
 
 
 class SpanStub:
@@ -257,7 +247,6 @@ class _ContextStub:
     """Placeholder for opentelemetry.context.Context."""
 
 
-# Try to import real implementations at runtime
 try:
     from opentelemetry import propagate as _real_propagate  # pyright: ignore
     from opentelemetry import trace as _real_trace  # pyright: ignore

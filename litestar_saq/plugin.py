@@ -38,7 +38,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         """
         self._config = config
         self._worker_instances: Optional[dict[str, Worker]] = None
-        self._enable_otel: Optional[bool] = None  # Resolved lazily
+        self._enable_otel: Optional[bool] = None
         self._otel_tracer: Optional[Any] = None
 
     @property
@@ -85,10 +85,6 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             )
         app_config.signature_namespace.update(self._config.signature_namespace)
 
-        # Note: We can't resolve enable_otel here because app isn't fully built yet.
-        # The app_config doesn't have the plugins list available.
-        # enable_otel will be resolved in get_workers() based on config setting alone.
-
         workers = self.get_workers()
         for worker in workers.values():
             app_config.on_startup.append(worker.on_app_startup)
@@ -101,11 +97,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         if self._worker_instances is not None:
             return self._worker_instances
 
-        # Resolve enable_otel if not already done
         if self._enable_otel is None:
             self._enable_otel = self._config.should_enable_otel()
 
-        # Get tracer if OTEL enabled
         otel_tracer = self._get_otel_tracer() if self._enable_otel else None
 
         self._worker_instances = {

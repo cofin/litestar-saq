@@ -19,8 +19,6 @@ if TYPE_CHECKING:
     from saq.types import Function, PartialTimersDict, ReceivesContext
 
 JsonDict = dict[str, Any]
-
-# Key used to store span in SAQ context
 _OTEL_SPAN_KEY = "_otel_span"
 
 
@@ -131,18 +129,11 @@ class Worker(SaqWorker[Context]):
         self._enable_otel = enable_otel and OPENTELEMETRY_INSTALLED
         self._otel_tracer = otel_tracer
 
-        # Prepend OTEL hooks if enabled
-        otel_before: list[Any] = []
-        otel_after: list[Any] = []
-        if self._enable_otel:
-            otel_before = [self._otel_before_process]
-            otel_after = [self._otel_after_process]
-
-        # Normalize user hooks to lists
+        otel_before: list[Any] = [self._otel_before_process] if self._enable_otel else []
+        otel_after: list[Any] = [self._otel_after_process] if self._enable_otel else []
         user_before = _normalize_hooks(before_process)
         user_after = _normalize_hooks(after_process)
 
-        # Build kwargs for super().__init__, only including new params if provided
         kwargs: dict[str, Any] = {
             "id": id,
             "concurrency": concurrency,
@@ -159,7 +150,6 @@ class Worker(SaqWorker[Context]):
             "metadata": metadata,
         }
 
-        # Add SAQ 0.26+ parameters if provided
         if shutdown_grace_period_s is not None:
             kwargs["shutdown_grace_period_s"] = shutdown_grace_period_s
         if cancellation_hard_deadline_s is not None:
@@ -170,7 +160,11 @@ class Worker(SaqWorker[Context]):
         super().__init__(queue, functions, **kwargs)
 
     def _get_otel_tracer(self) -> Tracer:
-        """Get the OTEL tracer, creating one if needed."""
+        """Get the OTEL tracer, creating one if needed.
+
+        Returns:
+            Tracer instance.
+        """
         if self._otel_tracer is None:
             from litestar_saq.instrumentation import get_tracer
 
