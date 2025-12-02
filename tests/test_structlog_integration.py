@@ -1,22 +1,15 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Any
+from typing import Any, Optional
 from unittest.mock import Mock, patch
 
 import pytest
 
 from litestar_saq.base import Worker
 
-if TYPE_CHECKING:
-    from saq.queue.base import Queue
-
-
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
 def mock_queue() -> Mock:
-    """Create a mock SAQ queue."""
     queue = Mock(spec=["name", "connect", "disconnect"])
     queue.name = "test-queue"
     return queue
@@ -24,16 +17,15 @@ def mock_queue() -> Mock:
 
 @pytest.fixture
 def create_worker(mock_queue: Mock) -> Any:
-    """Factory fixture to create Worker instances with custom config."""
 
     def _create_worker(
         *,
-        worker_id: str | None = "test-worker-123",
+        worker_id: "Optional[str]" = "test-worker-123",
         concurrency: int = 10,
         separate_process: bool = False,
-        metadata: dict[str, Any] | None = None,
+        metadata: "Optional[dict[str, Any]]" = None,
     ) -> Worker:
-        async def dummy_task(_ctx: dict[str, Any]) -> None:
+        async def dummy_task(_ctx: "dict[str, Any]") -> None:
             pass
 
         return Worker(
