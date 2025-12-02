@@ -4,7 +4,6 @@ import asyncio
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-import typing_extensions
 from litestar import Controller, Litestar, get
 
 from examples import tasks
@@ -42,7 +41,6 @@ async def system_task(_: Context) -> None:
 
 class SampleController(Controller):
     @get(path="/samples")
-    @typing_extensions.override
     async def samples_queue_info(self, task_queues: TaskQueues) -> QueueInfo:
         queue = task_queues.get("samples")
         return await queue.info()

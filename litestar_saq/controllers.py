@@ -1,4 +1,4 @@
-# ruff: noqa: PLR6301
+import html
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -28,25 +28,26 @@ def build_controller(  # noqa: C901
     controller_guards: "Optional[list[Guard]]" = None,  # pyright: ignore[reportUnknownParameterType]
     include_in_schema_: bool = False,
 ) -> "type[Controller]":
-    from litestar import Controller, MediaType, get, post
+    from litestar import Controller, MediaType, Response, get, post
     from litestar.exceptions import NotFoundException
-    from litestar.status_codes import HTTP_202_ACCEPTED
+    from litestar.status_codes import HTTP_202_ACCEPTED, HTTP_500_INTERNAL_SERVER_ERROR
 
     normalized_root = url_base.rstrip("/") or "/saq"
-    html_template = """
+    escaped_root = html.escape(normalized_root)
+    html_template = f"""
     <!DOCTYPE html>
     <html>
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <link rel="stylesheet" type="text/css" href="{root}/static/pico.min.css.gz">
+            <link rel="stylesheet" type="text/css" href="{escaped_root}/static/pico.min.css.gz">
             <title>SAQ</title>
         </head>
         <body>
             <div id="app"></div>
-            <script>const root_path = \"{root}/\";</script>
-            <script src="{root}/static/snabbdom.js.gz"></script>
-            <script src="{root}/static/app.js"></script>
+            <script>const root_path = "{escaped_root}/";</script>
+            <script src="{escaped_root}/static/snabbdom.js.gz"></script>
+            <script src="{escaped_root}/static/app.js"></script>
         </body>
     </html>
     """.strip()
@@ -205,6 +206,36 @@ def build_controller(  # noqa: C901
             await job.abort("aborted from ui")
             return {}
 
+        @get(
+            operation_id="WorkerHealthCheck",
+            name="worker:health",
+            path=f"{url_base}/health",
+            media_type=MediaType.TEXT,
+            cache=False,
+            summary="Health Check",
+            description="Check if queues are accessible.",
+        )
+        async def health(self, task_queues: "TaskQueues") -> Response[str]:
+            """Health check endpoint.
+
+            Args:
+                task_queues: The task queues.
+
+            Returns:
+                OK if queues are accessible, 500 otherwise.
+            """
+            try:
+                queues_info = [await queue.info() for queue in task_queues.queues.values()]
+                if queues_info:
+                    return Response(content="OK", media_type=MediaType.TEXT)
+            except Exception:  # noqa: BLE001, S110
+                pass
+            return Response(
+                content="Service Unavailable",
+                media_type=MediaType.TEXT,
+                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         # static site
         @get(
             [url_base, f"{url_base}/", f"{url_base}/{{path:path}}"],
@@ -214,8 +245,6 @@ def build_controller(  # noqa: C901
             include_in_schema=False,
         )
         async def index(self, path: Optional[str] = None) -> str:
-            """Serve site root with normalized root path for assets."""
-
-            return html_template.format(root=normalized_root)
+            return html_template
 
     return SAQController

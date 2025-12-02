@@ -16,9 +16,9 @@ def test_postgres_pool_defaults_sets_autocommit(monkeypatch: pytest.MonkeyPatch)
 
     dummy_module = types.SimpleNamespace(AsyncConnectionPool=DummyPool)
 
-    def fake_import_module(path: str):
+    def fake_import_module(path: str) -> types.ModuleType:
         if path == "psycopg_pool":
-            return dummy_module
+            return dummy_module  # type: ignore[return-value]
         return importlib.import_module(path)
 
     monkeypatch.setattr("litestar_saq.config.import_module", fake_import_module)
@@ -39,9 +39,9 @@ def test_broker_type_detection_without_optional_deps(monkeypatch: pytest.MonkeyP
 
     dummy_module = types.SimpleNamespace(Redis=DummyRedis)
 
-    def fake_import_module(path: str):
+    def fake_import_module(path: str) -> types.ModuleType:
         if path == "redis":
-            return dummy_module
+            return dummy_module  # type: ignore[return-value]
         return importlib.import_module(path)
 
     monkeypatch.setattr("litestar_saq.config.import_module", fake_import_module)

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 import pytest
 from redis.asyncio import Redis
-import warnings
 
 # Suppress rich-click pending deprecations triggered by upstream Litestar CLI defaults
 warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
@@ -28,9 +28,4 @@ def anyio_backend() -> str:
 
 @pytest.fixture(name="redis", autouse=True)
 async def fx_redis(redis_service: RedisService) -> AsyncGenerator[Redis, None]:
-    """Redis instance for testing.
-
-    Returns:
-        Redis client instance, function scoped.
-    """
     yield Redis(host=redis_service.host, port=redis_service.port)

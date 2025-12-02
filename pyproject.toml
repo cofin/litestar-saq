@@ -206,6 +206,8 @@ lint.ignore = [
   "PLC0415",  # import at the top of the file
   "PGH003",   # Use specific rule codes when ignoring type issues
   "PLC2701",  # ignore for now; investigate
+  "PLR6301",  # function could be static or class method
+  "RUF029",
 ]
 lint.select = ["ALL"]
 # Allow unused variables when underscore-prefixed.
