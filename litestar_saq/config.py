@@ -235,21 +235,21 @@ class QueueConfig:
     """If True, the worker will process jobs in burst mode."""
     max_burst_jobs: int | None = None
     """The maximum number of jobs to process in burst mode."""
-    metadata: JsonDict | None = None
+    metadata: "Optional[JsonDict]" = None
     """Arbitrary data to pass to the worker which it will register with saq."""
     multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing"
     """Executes with the multiprocessing or threading backend. Multi-processing is recommended and how SAQ is designed to work."""
     separate_process: bool = True
     """Executes as a separate event loop when True.
             Set it False to execute within the Litestar application."""
-    shutdown_grace_period_s: int | None = None
+    shutdown_grace_period_s: "Optional[int]" = None
     """Time in seconds to allow jobs to complete gracefully before forced shutdown.
 
     When the worker receives a shutdown signal, it will wait up to this duration
     for running jobs to complete naturally before forcing cancellation.
     If None, uses SAQ's default.
     """
-    cancellation_hard_deadline_s: float | None = None
+    cancellation_hard_deadline_s: Optional[float] = None
     """Absolute deadline in seconds for task cancellation.
 
     After this time, tasks are forcibly terminated regardless of grace period.

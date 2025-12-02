@@ -91,12 +91,12 @@ class Worker(SaqWorker[Context]):
         timers: PartialTimersDict | None = None,
         dequeue_timeout: float = 0,
         burst: bool = False,
-        max_burst_jobs: int | None = None,
-        metadata: JsonDict | None = None,
+        max_burst_jobs: "Optional[int]" = None,
+        metadata: "Optional[JsonDict]" = None,
         separate_process: bool = True,
         multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing",
-        shutdown_grace_period_s: int | None = None,
-        cancellation_hard_deadline_s: float | None = None,
+        shutdown_grace_period_s: "Optional[int]" = None,
+        cancellation_hard_deadline_s: float = 1.0,
         poll_interval: float | None = None,
     ) -> None:
         self.separate_process = separate_process

@@ -115,6 +115,8 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 separate_process=queue_config.separate_process,
                 burst=queue_config.burst,
                 max_burst_jobs=queue_config.max_burst_jobs,
+                shutdown_grace_period_s=queue_config.shutdown_grace_period_s,
+                cancellation_hard_deadline_s=queue_config.cancellation_hard_deadline_s,
                 metadata=queue_config.metadata,
                 shutdown_grace_period_s=queue_config.shutdown_grace_period_s,
                 cancellation_hard_deadline_s=queue_config.cancellation_hard_deadline_s,
