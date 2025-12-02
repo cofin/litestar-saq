@@ -148,8 +148,8 @@ class SAQConfig:
         if app is not None:
             return _has_otel_plugin(app)
 
-        # If no app provided but OTEL installed, enable by default
-        return True
+        # If no app provided, require explicit opt-in
+        return False
 
     @property
     def signature_namespace(self) -> "dict[str, Any]":
