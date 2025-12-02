@@ -12,8 +12,11 @@ from litestar_saq.hooks import (
     timing_before_process,
 )
 from litestar_saq.plugin import SAQPlugin
+from litestar_saq.typing import OPENTELEMETRY_INSTALLED
 
 __all__ = (
+    # OpenTelemetry
+    "OPENTELEMETRY_INSTALLED",
     "CronJob",
     "Job",
     "PostgresQueueOptions",

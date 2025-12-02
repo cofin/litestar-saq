@@ -1,8 +1,8 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false
 import signal
 import sys
 import time
 from contextlib import contextmanager
-from importlib.util import find_spec
 from multiprocessing import Process
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -21,13 +21,11 @@ if TYPE_CHECKING:
 
     from litestar_saq.config import SAQConfig, TaskQueues
 
-STRUCTLOG_INSTALLED = find_spec("structlog") is not None
-
 
 class SAQPlugin(InitPluginProtocol, CLIPlugin):
     """SAQ plugin."""
 
-    __slots__ = ("_config", "_processes", "_worker_instances")
+    __slots__ = ("_config", "_enable_otel", "_otel_tracer", "_processes", "_worker_instances")
 
     WORKER_SHUTDOWN_TIMEOUT = 5.0  # seconds
     WORKER_JOIN_TIMEOUT = 1.0  # seconds
@@ -40,6 +38,8 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         """
         self._config = config
         self._worker_instances: Optional[dict[str, Worker]] = None
+        self._enable_otel: Optional[bool] = None
+        self._otel_tracer: Optional[Any] = None
 
     @property
     def config(self) -> "SAQConfig":
@@ -96,6 +96,12 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         """Return workers"""
         if self._worker_instances is not None:
             return self._worker_instances
+
+        if self._enable_otel is None:
+            self._enable_otel = self._config.should_enable_otel()
+
+        otel_tracer = self._get_otel_tracer() if self._enable_otel else None
+
         self._worker_instances = {
             queue_config.name: Worker(
                 queue=self.get_queue(queue_config.name),
@@ -117,11 +123,21 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 shutdown_grace_period_s=queue_config.shutdown_grace_period_s,
                 cancellation_hard_deadline_s=queue_config.cancellation_hard_deadline_s,
                 poll_interval=queue_config.poll_interval,
+                enable_otel=self._enable_otel,
+                otel_tracer=otel_tracer,
             )
             for queue_config in self._config.queue_configs
         }
 
         return self._worker_instances
+
+    def _get_otel_tracer(self) -> Any:
+        """Get or create the OTEL tracer."""
+        if self._otel_tracer is None:
+            from litestar_saq.instrumentation import get_tracer
+
+            self._otel_tracer = get_tracer(self._config.otel_tracer_name)
+        return self._otel_tracer
 
     def remove_workers(self) -> None:
         self._worker_instances = None

@@ -143,7 +143,7 @@ def test_configure_structlog_context_when_not_installed(
 ) -> None:
     """Test configure_structlog_context does nothing when structlog is not installed."""
     # Arrange
-    monkeypatch.setattr("litestar_saq.plugin.STRUCTLOG_INSTALLED", False)
+    monkeypatch.setattr("litestar_saq.typing.STRUCTLOG_INSTALLED", False)
     worker = create_worker()
 
     # Act - should not raise any errors
@@ -158,7 +158,7 @@ def test_configure_structlog_context_binds_when_installed(
 ) -> None:
     """Test configure_structlog_context binds context when structlog is available."""
     # Arrange
-    monkeypatch.setattr("litestar_saq.plugin.STRUCTLOG_INSTALLED", True)
+    monkeypatch.setattr("litestar_saq.typing.STRUCTLOG_INSTALLED", True)
 
     mock_structlog = Mock()
     mock_bind = Mock()
@@ -189,7 +189,7 @@ def test_configure_structlog_context_handles_import_error(
 ) -> None:
     """Test configure_structlog_context handles ImportError gracefully when structlog import fails."""
     # Arrange
-    monkeypatch.setattr("litestar_saq.plugin.STRUCTLOG_INSTALLED", True)
+    monkeypatch.setattr("litestar_saq.typing.STRUCTLOG_INSTALLED", True)
     worker = create_worker()
 
     # Simulate structlog not being importable by removing it from sys.modules
@@ -207,7 +207,7 @@ def test_configure_structlog_context_handles_bind_error(
 ) -> None:
     """Test configure_structlog_context handles bind_contextvars errors gracefully."""
     # Arrange
-    monkeypatch.setattr("litestar_saq.plugin.STRUCTLOG_INSTALLED", True)
+    monkeypatch.setattr("litestar_saq.typing.STRUCTLOG_INSTALLED", True)
 
     mock_structlog = Mock()
     mock_bind = Mock(side_effect=RuntimeError("Context binding failed"))
@@ -233,7 +233,7 @@ async def test_on_app_startup_calls_configure_structlog(
 ) -> None:
     """Test on_app_startup calls configure_structlog_context before starting."""
     # Arrange
-    monkeypatch.setattr("litestar_saq.plugin.STRUCTLOG_INSTALLED", True)
+    monkeypatch.setattr("litestar_saq.typing.STRUCTLOG_INSTALLED", True)
 
     mock_structlog = Mock()
     mock_bind = Mock()
@@ -294,7 +294,7 @@ def test_run_saq_worker_calls_configure_structlog_for_separate_process(
     from litestar_saq.cli import run_saq_worker
 
     # Arrange
-    monkeypatch.setattr("litestar_saq.plugin.STRUCTLOG_INSTALLED", True)
+    monkeypatch.setattr("litestar_saq.typing.STRUCTLOG_INSTALLED", True)
 
     mock_structlog = Mock()
     mock_bind = Mock()
@@ -337,7 +337,7 @@ def test_run_saq_worker_does_not_configure_for_in_process(
     from litestar_saq.cli import run_saq_worker
 
     # Arrange
-    monkeypatch.setattr("litestar_saq.plugin.STRUCTLOG_INSTALLED", True)
+    monkeypatch.setattr("litestar_saq.typing.STRUCTLOG_INSTALLED", True)
 
     mock_structlog = Mock()
     mock_bind = Mock()
@@ -432,7 +432,7 @@ def test_configure_structlog_context_with_malformed_structlog_module(
 ) -> None:
     """Test configure_structlog_context handles malformed structlog module."""
     # Arrange
-    monkeypatch.setattr("litestar_saq.plugin.STRUCTLOG_INSTALLED", True)
+    monkeypatch.setattr("litestar_saq.typing.STRUCTLOG_INSTALLED", True)
 
     # Mock structlog module missing contextvars attribute
     mock_structlog = Mock()
