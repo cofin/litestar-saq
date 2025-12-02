@@ -1,6 +1,11 @@
-from typing import TYPE_CHECKING, Optional
+import signal
+import sys
+import time
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
+    import multiprocessing
+
     from click import Group
     from litestar import Litestar
     from litestar.logging.config import BaseLoggingConfig
@@ -9,7 +14,41 @@ if TYPE_CHECKING:
     from litestar_saq.plugin import SAQPlugin
 
 
-def build_cli_app() -> "Group":  # noqa: C901
+def _terminate_worker_processes(
+    processes: "list[multiprocessing.Process]",
+    timeout: float = 5.0,
+) -> None:
+    """Gracefully terminate worker processes with timeout.
+
+    Args:
+        processes: List of worker processes to terminate
+        timeout: Maximum time to wait for graceful shutdown in seconds
+    """
+    from litestar.cli._utils import console  # pyright: ignore
+
+    # Send SIGTERM to all processes
+    for p in processes:
+        if p.is_alive():
+            p.terminate()
+
+    # Wait for processes to terminate gracefully
+    termination_start = time.time()
+    while time.time() - termination_start < timeout:
+        if not any(p.is_alive() for p in processes):
+            break
+        time.sleep(0.1)
+
+    # Force kill any remaining processes
+    for p in processes:
+        if p.is_alive():
+            try:
+                p.kill()  # Send SIGKILL
+                p.join(timeout=1.0)
+            except Exception:  # noqa: BLE001
+                console.print(f"[red]Error killing worker process: {p.name}[/]")
+
+
+def build_cli_app() -> "Group":  # noqa: C901, PLR0915
     import asyncio
     import multiprocessing
     import platform
@@ -67,6 +106,21 @@ def build_cli_app() -> "Group":  # noqa: C901
         show_saq_info(app, workers, plugin)
         managed_workers = list(plugin.get_workers().values())
         processes: list[multiprocessing.Process] = []
+
+        def handle_shutdown_signal(signum: int, _frame: Any) -> None:
+            """Handle shutdown signals (SIGTERM/SIGINT) for graceful shutdown."""
+            sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
+            console.print(f"[yellow]Received {sig_name}, stopping workers...[/]")
+            _terminate_worker_processes(processes)
+            loop = asyncio.get_event_loop()
+            for w in managed_workers:
+                loop.run_until_complete(w.stop())
+            console.print("[yellow]SAQ workers stopped.[/]")
+            sys.exit(0)
+
+        signal.signal(signal.SIGTERM, handle_shutdown_signal)
+        signal.signal(signal.SIGINT, handle_shutdown_signal)
+
         if workers > 1:
             for _ in range(workers - 1):
                 for worker in managed_workers:
@@ -86,16 +140,10 @@ def build_cli_app() -> "Group":  # noqa: C901
                 p.start()
                 processes.append(p)
 
-        try:
-            run_saq_worker(
-                worker=managed_workers[0],
-                logging_config=cast("BaseLoggingConfig", app.logging_config),
-            )
-        except KeyboardInterrupt:
-            loop = asyncio.get_event_loop()
-            for w in managed_workers:
-                loop.run_until_complete(w.stop())
-        console.print("[yellow]SAQ workers stopped.[/]")
+        run_saq_worker(
+            worker=managed_workers[0],
+            logging_config=cast("BaseLoggingConfig", app.logging_config),
+        )
 
     @background_worker_group.command(
         name="status",
@@ -190,6 +238,13 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
     # (In-process workers configure in on_app_startup)
     if worker.separate_process:
         worker.configure_structlog_context()
+
+    def handle_sigterm(_signum: int, _frame: Any) -> None:
+        """Handle SIGTERM in worker process."""
+        loop.run_until_complete(loop.create_task(worker.stop()))
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
 
     async def worker_start(w: "Worker") -> None:
         try:
