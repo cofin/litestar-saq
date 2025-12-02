@@ -32,6 +32,25 @@ def build_controller(  # noqa: C901
     from litestar.exceptions import NotFoundException
     from litestar.status_codes import HTTP_202_ACCEPTED
 
+    normalized_root = url_base.rstrip("/") or "/saq"
+    html_template = """
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <link rel="stylesheet" type="text/css" href="{root}/static/pico.min.css.gz">
+            <title>SAQ</title>
+        </head>
+        <body>
+            <div id="app"></div>
+            <script>const root_path = \"{root}/\";</script>
+            <script src="{root}/static/snabbdom.js.gz"></script>
+            <script src="{root}/static/app.js"></script>
+        </body>
+    </html>
+    """.strip()
+
     class SAQController(Controller):
         tags = ["SAQ"]
         guards = controller_guards  # pyright: ignore[reportUnknownVariableType]
@@ -188,37 +207,15 @@ def build_controller(  # noqa: C901
 
         # static site
         @get(
-            [
-                f"{url_base}/",
-                f"{url_base}/queues/{{queue_id:str}}",
-                f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
-            ],
+            [url_base, f"{url_base}/", f"{url_base}/{{path:path}}"],
             operation_id="WorkerIndex",
             name="worker:index",
             media_type=MediaType.HTML,
             include_in_schema=False,
         )
-        async def index(self) -> str:
-            """Serve site root.
+        async def index(self, path: Optional[str] = None) -> str:
+            """Serve site root with normalized root path for assets."""
 
-            Returns:
-                The site root.
-            """
-            return f"""
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <meta charset="utf-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1">
-                    <link rel="stylesheet" type="text/css" href="{url_base}/static/pico.min.css.gz">
-                    <title>SAQ</title>
-                </head>
-                <body>
-                    <div id="app"></div>
-                    <script>const root_path = "{url_base}";</script>
-                    <script src="{url_base}/static/snabbdom.js.gz"></script>
-                    <script src="{url_base}/static/app.js"></script>
-                </body>
-            </html>""".strip()
+            return html_template.format(root=normalized_root)
 
     return SAQController

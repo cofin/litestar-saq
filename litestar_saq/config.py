@@ -1,8 +1,10 @@
-from collections.abc import AsyncGenerator, Collection, Mapping
+# ruff: noqa: BLE001
+from collections.abc import AsyncGenerator, Collection, MutableMapping
 from dataclasses import dataclass, field
 from datetime import timezone, tzinfo
+from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Optional, TypedDict, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, Literal, Optional, TypedDict, TypeVar, Union, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
@@ -43,7 +45,7 @@ def _get_static_files() -> Path:
 class TaskQueues:
     """Task queues."""
 
-    queues: "Mapping[str, Queue]" = field(default_factory=dict)  # pyright: ignore
+    queues: "MutableMapping[str, Queue]" = field(default_factory=dict)  # pyright: ignore
 
     def get(self, name: str) -> "Queue":
         """Get a queue by name.
@@ -72,7 +74,7 @@ class SAQConfig:
     queue_configs: "Collection[QueueConfig]" = field(default_factory=list)  # pyright: ignore
     """Configuration for Queues"""
 
-    queue_instances: "Optional[Mapping[str, Queue]]" = None
+    queue_instances: "Optional[MutableMapping[str, Queue]]" = None
     """Current configured queue instances. When None, queues will be auto-created on startup"""
     queues_dependency_key: str = field(default="task_queues")
     """Key to use for storing dependency information in litestar."""
@@ -156,7 +158,9 @@ class SAQConfig:
                 load=self.json_deserializer,
                 **c._broker_options,  # pyright: ignore[reportArgumentType,reportPrivateUsage]  # noqa: SLF001
             )
-            self.queue_instances[c.name]._is_pool_provided = False  # type: ignore  # noqa: SLF001
+            queue = self.queue_instances[c.name]
+            if hasattr(queue, "_is_pool_provided"):
+                queue._is_pool_provided = False  # type: ignore  # noqa: SLF001
         return TaskQueues(queues=self.queue_instances)
 
 
@@ -240,6 +244,9 @@ class QueueConfig:
             Set it False to execute within the Litestar application."""
 
     def __post_init__(self) -> None:
+        if getattr(self, "_normalized", False):
+            return
+
         if self.dsn and self.broker_instance:
             msg = "Cannot specify both `dsn` and `broker_instance`"
             raise ImproperlyConfiguredException(msg)
@@ -261,6 +268,7 @@ class QueueConfig:
         self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]  # pyright: ignore
         self._broker_type: Optional[Literal["redis", "postgres", "http"]] = None
         self._queue_class: Optional[type[Queue]] = None
+        self._normalized = True
 
     def get_broker(self) -> "Any":
         """Get the configured Broker connection.
@@ -273,6 +281,7 @@ class QueueConfig:
         """
 
         if self.broker_instance is not None:
+            self._ensure_postgres_pool_defaults()
             return self.broker_instance
 
         if self.dsn and self.dsn.startswith("redis"):
@@ -286,7 +295,12 @@ class QueueConfig:
             from psycopg_pool import AsyncConnectionPool
             from saq.queue.postgres import PostgresQueue
 
-            self.broker_instance = AsyncConnectionPool(self.dsn, check=AsyncConnectionPool.check_connection, open=False)
+            self.broker_instance = AsyncConnectionPool(
+                self.dsn,
+                check=AsyncConnectionPool.check_connection,
+                open=False,
+            )
+            self._ensure_postgres_pool_defaults()
             self._broker_type = "postgres"
             self._queue_class = PostgresQueue
         elif self.dsn and self.dsn.startswith("http"):
@@ -300,6 +314,38 @@ class QueueConfig:
             raise ImproperlyConfiguredException(msg)
         return self.broker_instance
 
+    def _ensure_postgres_pool_defaults(self) -> None:
+        """Normalize psycopg connection pool defaults for SAQ.
+
+        SAQ's PostgresQueue expects ``pool.kwargs`` to be a mutable mapping with
+        ``autocommit`` enabled. psycopg 3.2+ may default ``pool.kwargs`` to
+        ``None``, which raises an ``AttributeError`` in SAQ >=0.24.4 when it
+        checks ``pool.kwargs.get``. Setting a dict here keeps compatibility with
+        older SAQ releases while satisfying newer versions' autocommit guard.
+        """
+
+        if self.broker_instance is None:
+            return
+
+        if not self._is_instance_of(self.broker_instance, "psycopg_pool", "AsyncConnectionPool"):
+            return
+
+        kwargs: Optional[MutableMapping[str, Any]] = getattr(self.broker_instance, "kwargs", None)
+        if kwargs is None:
+            self.broker_instance.kwargs = {}
+            kwargs = self.broker_instance.kwargs  # pyright: ignore
+
+        kwargs.setdefault("autocommit", True)  # pyright: ignore
+
+    @staticmethod
+    def _is_instance_of(obj: object, module_path: str, class_name: str) -> bool:
+        try:
+            module = import_module(module_path)
+            cls = getattr(module, class_name)
+        except Exception:
+            return False
+        return isinstance(obj, cls)
+
     @property
     def broker_type(self) -> 'Literal["redis", "postgres", "http"]':
         """Type of broker to use.
@@ -311,11 +357,11 @@ class QueueConfig:
             The broker type.
         """
         if self._broker_type is None and self.broker_instance is not None:
-            if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
+            if self._is_instance_of(self.broker_instance, "psycopg_pool", "AsyncConnectionPool"):
                 self._broker_type = "postgres"
-            elif self.broker_instance.__class__.__name__ == "Redis":
+            elif self._is_instance_of(self.broker_instance, "redis", "Redis"):
                 self._broker_type = "redis"
-            elif self.broker_instance.__class__.__name__ == "HttpQueue":
+            elif self._is_instance_of(self.broker_instance, "saq.queue.http", "HttpQueue"):
                 self._broker_type = "http"
         if self._broker_type is None:
             self.get_broker()
@@ -346,15 +392,15 @@ class QueueConfig:
             The queue class.
         """
         if self._queue_class is None and self.broker_instance is not None:
-            if self.broker_instance.__class__.__name__ == "AsyncConnectionPool":
+            if self._is_instance_of(self.broker_instance, "psycopg_pool", "AsyncConnectionPool"):
                 from saq.queue.postgres import PostgresQueue
 
                 self._queue_class = PostgresQueue
-            elif self.broker_instance.__class__.__name__ == "Redis":
+            elif self._is_instance_of(self.broker_instance, "redis", "Redis"):
                 from saq.queue.redis import RedisQueue
 
                 self._queue_class = RedisQueue
-            elif self.broker_instance.__class__.__name__ == "HttpQueue":
+            elif self._is_instance_of(self.broker_instance, "saq.queue.http", "HttpQueue"):
                 from saq.queue.http import HttpQueue
 
                 self._queue_class = HttpQueue
