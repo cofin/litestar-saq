@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 import signal
 import sys
 import time
 from contextlib import contextmanager
 from importlib.util import find_spec
 from multiprocessing import Process
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from litestar.plugins import CLIPlugin, InitPluginProtocol
 
@@ -34,26 +32,26 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     WORKER_SHUTDOWN_TIMEOUT = 5.0  # seconds
     WORKER_JOIN_TIMEOUT = 1.0  # seconds
 
-    def __init__(self, config: SAQConfig) -> None:
+    def __init__(self, config: "SAQConfig") -> None:
         """Initialize ``SAQPlugin``.
 
         Args:
             config: configure and start SAQ.
         """
         self._config = config
-        self._worker_instances: dict[str, Worker] | None = None
+        self._worker_instances: Optional[dict[str, Worker]] = None
 
     @property
-    def config(self) -> SAQConfig:
+    def config(self) -> "SAQConfig":
         return self._config
 
-    def on_cli_init(self, cli: Group) -> None:
+    def on_cli_init(self, cli: "Group") -> None:
         from litestar_saq.cli import build_cli_app
 
         cli.add_command(build_cli_app())
         return super().on_cli_init(cli)  # type: ignore[safe-super]
 
-    def on_app_init(self, app_config: AppConfig) -> AppConfig:
+    def on_app_init(self, app_config: "AppConfig") -> "AppConfig":
         """Configure application for use with SQLAlchemy.
 
         Args:
@@ -94,7 +92,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         app_config.on_shutdown.extend([self.remove_workers])
         return app_config
 
-    def get_workers(self) -> dict[str, Worker]:
+    def get_workers(self) -> "dict[str, Worker]":
         """Return workers"""
         if self._worker_instances is not None:
             return self._worker_instances
@@ -115,8 +113,6 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
                 separate_process=queue_config.separate_process,
                 burst=queue_config.burst,
                 max_burst_jobs=queue_config.max_burst_jobs,
-                shutdown_grace_period_s=queue_config.shutdown_grace_period_s,
-                cancellation_hard_deadline_s=queue_config.cancellation_hard_deadline_s,
                 metadata=queue_config.metadata,
                 shutdown_grace_period_s=queue_config.shutdown_grace_period_s,
                 cancellation_hard_deadline_s=queue_config.cancellation_hard_deadline_s,
@@ -130,14 +126,14 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     def remove_workers(self) -> None:
         self._worker_instances = None
 
-    def get_queues(self) -> TaskQueues:
+    def get_queues(self) -> "TaskQueues":
         return self._config.get_queues()
 
-    def get_queue(self, name: str) -> Queue:
+    def get_queue(self, name: str) -> "Queue":
         return self.get_queues().get(name)
 
     @contextmanager
-    def server_lifespan(self, app: Litestar) -> Iterator[None]:
+    def server_lifespan(self, app: "Litestar") -> "Iterator[None]":
         import multiprocessing
         import platform
 
@@ -191,7 +187,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             console.print("[yellow]SAQ workers stopped.[/]")
 
     @staticmethod
-    def _terminate_workers(processes: list[Process], timeout: float = 5.0) -> None:
+    def _terminate_workers(processes: "list[Process]", timeout: float = 5.0) -> None:
         """Gracefully terminate worker processes with timeout.
 
         Args:

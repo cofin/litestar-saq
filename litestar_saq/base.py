@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass, field
 from datetime import timezone, tzinfo
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 
 from litestar.utils.module_loader import import_string
 from saq import Job as SaqJob
@@ -29,16 +27,16 @@ class Job(SaqJob):
 class CronJob(SaqCronJob[Context]):
     """Cron Job Details"""
 
-    function: Function[Context] | str  # type: ignore[assignment]
-    meta: dict[str, Any] = field(default_factory=dict)  # pyright: ignore
+    function: "Union[Function[Context], str]"  # type: ignore[assignment]
+    meta: "dict[str, Any]" = field(default_factory=dict)  # pyright: ignore
 
     def __post_init__(self) -> None:
         self.function = self._get_or_import_function(self.function)  # pyright: ignore[reportIncompatibleMethodOverride]
 
     @staticmethod
     def _get_or_import_function(
-        function_or_import_string: str | Function[Context],
-    ) -> Function[Context]:
+        function_or_import_string: "Union[str, Function[Context]]",
+    ) -> "Function[Context]":
         if isinstance(function_or_import_string, str):
             return cast("Function[Context]", import_string(function_or_import_string))
         return function_or_import_string
@@ -77,18 +75,18 @@ class Worker(SaqWorker[Context]):
 
     def __init__(
         self,
-        queue: Queue,
-        functions: Collection[Function[Context] | tuple[str, Function[Context]]],
+        queue: "Queue",
+        functions: "Collection[Union[Function[Context], tuple[str, Function[Context]]]]",
         *,
-        id: str | None = None,  # noqa: A002
+        id: "Optional[str]" = None,  # noqa: A002
         concurrency: int = 10,
-        cron_jobs: Collection[CronJob] | None = None,
-        cron_tz: tzinfo = timezone.utc,
-        startup: ReceivesContext[Context] | Collection[ReceivesContext[Context]] | None = None,
-        shutdown: ReceivesContext[Context] | Collection[ReceivesContext[Context]] | None = None,
-        before_process: ReceivesContext[Context] | Collection[ReceivesContext[Context]] | None = None,
-        after_process: ReceivesContext[Context] | Collection[ReceivesContext[Context]] | None = None,
-        timers: PartialTimersDict | None = None,
+        cron_jobs: "Optional[Collection[CronJob]]" = None,
+        cron_tz: "tzinfo" = timezone.utc,
+        startup: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]" = None,
+        shutdown: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]" = None,
+        before_process: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]" = None,
+        after_process: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]" = None,
+        timers: "Optional[PartialTimersDict]" = None,
         dequeue_timeout: float = 0,
         burst: bool = False,
         max_burst_jobs: "Optional[int]" = None,
@@ -96,8 +94,8 @@ class Worker(SaqWorker[Context]):
         separate_process: bool = True,
         multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing",
         shutdown_grace_period_s: "Optional[int]" = None,
-        cancellation_hard_deadline_s: float = 1.0,
-        poll_interval: float | None = None,
+        cancellation_hard_deadline_s: "Optional[float]" = None,
+        poll_interval: "Optional[float]" = None,
     ) -> None:
         self.separate_process = separate_process
         self.multiprocessing_mode = multiprocessing_mode

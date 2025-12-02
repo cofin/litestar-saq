@@ -1,12 +1,10 @@
 # ruff: noqa: BLE001
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator, Collection, MutableMapping
 from dataclasses import dataclass, field
 from datetime import timezone, tzinfo
 from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypedDict, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, Optional, TypedDict, TypeVar, Union, cast
 
 from litestar.exceptions import ImproperlyConfiguredException
 from litestar.serialization import decode_json, encode_json
@@ -45,7 +43,7 @@ def _get_static_files() -> Path:
 class TaskQueues:
     """Task queues."""
 
-    queues: MutableMapping[str, Queue] = field(default_factory=dict)  # pyright: ignore
+    queues: "MutableMapping[str, Queue]" = field(default_factory=dict)  # pyright: ignore
 
     def get(self, name: str) -> Queue:
         """Get a queue by name.
@@ -71,10 +69,10 @@ class TaskQueues:
 class SAQConfig:
     """SAQ Configuration."""
 
-    queue_configs: Collection[QueueConfig] = field(default_factory=list)  # pyright: ignore
+    queue_configs: "Collection[QueueConfig]" = field(default_factory=list)  # pyright: ignore
     """Configuration for Queues"""
 
-    queue_instances: MutableMapping[str, Queue] | None = None
+    queue_instances: "Optional[MutableMapping[str, Queue]]" = None
     """Current configured queue instances. When None, queues will be auto-created on startup"""
     queues_dependency_key: str = field(default="task_queues")
     """Key to use for storing dependency information in litestar."""
@@ -97,7 +95,7 @@ class SAQConfig:
     """If true, the worker admin UI is launched on worker startup.."""
     web_path: str = "/saq"
     """Base path to serve the SAQ web UI"""
-    web_guards: list[Guard] | None = field(default=None)
+    web_guards: "Optional[list[Guard]]" = field(default=None)
     """Guards to apply to web endpoints."""
     web_include_in_schema: bool = False
     """Include Queue API endpoints in generated OpenAPI schema"""
@@ -105,7 +103,7 @@ class SAQConfig:
     """Utilize the server lifespan hook to run SAQ."""
 
     @property
-    def signature_namespace(self) -> dict[str, Any]:
+    def signature_namespace(self) -> "dict[str, Any]":
         """Return the plugin's signature namespace.
 
         Returns:
@@ -120,7 +118,7 @@ class SAQConfig:
             "TaskQueues": TaskQueues,
         }
 
-    async def provide_queues(self) -> AsyncGenerator[TaskQueues, None]:
+    async def provide_queues(self) -> "AsyncGenerator[TaskQueues, None]":
         """Provide the configured job queues.
 
         Yields:
@@ -131,14 +129,14 @@ class SAQConfig:
             await queue.connect()
         yield queues
 
-    def filter_delete_queues(self, queues: list[str]) -> None:
+    def filter_delete_queues(self, queues: "list[str]") -> None:
         """Remove all queues except the ones in the given list."""
         new_config = [queue_config for queue_config in self.queue_configs if queue_config.name in queues]
         self.queue_configs = new_config
         if self.queue_instances is not None:
             for queue_name in dict(self.queue_instances):
                 if queue_name not in queues:
-                    del self.queue_instances[queue_name]  # type: ignore
+                    del self.queue_instances[queue_name]
 
     def get_queues(self) -> TaskQueues:
         """Get the configured SAQ queues.
@@ -160,7 +158,7 @@ class SAQConfig:
             )
             queue = self.queue_instances[c.name]
             if hasattr(queue, "_is_pool_provided"):
-                queue._is_pool_provided = False  # type: ignore  # noqa: SLF001
+                queue._is_pool_provided = False  # pyright: ignore[reportAttributeAccessIssue]  # noqa: SLF001
         return TaskQueues(queues=self.queue_instances)
 
 
@@ -185,7 +183,7 @@ class PostgresQueueOptions(TypedDict, total=False):
     saq_lock_keyspace: NotRequired[int]
     job_lock_keyspace: NotRequired[int]
     job_lock_sweep: NotRequired[bool]
-    priorities: NotRequired[tuple[int, int]]
+    priorities: NotRequired["tuple[int, int]"]
     swept_error_message: NotRequired[str]
     manage_pool_lifecycle: NotRequired[bool]
 
@@ -194,36 +192,38 @@ class PostgresQueueOptions(TypedDict, total=False):
 class QueueConfig:
     """SAQ Queue Configuration"""
 
-    dsn: str | None = None
+    dsn: "Optional[str]" = None
     """DSN for connecting to backend. e.g. 'redis://...' or 'postgres://...'.
     """
 
-    broker_instance: Any | None = None
+    broker_instance: "Optional[Any]" = None
     """An instance of a supported saq backend connection..
     """
-    id: str | None = None
+    id: "Optional[str]" = None
     """An optional ID to supply for the worker."""
     name: str = "default"
     """The name of the queue to create."""
     concurrency: int = 10
     """Number of jobs to process concurrently."""
-    broker_options: RedisQueueOptions | PostgresQueueOptions | dict[str, Any] = field(default_factory=dict)  # pyright: ignore
+    broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)  # pyright: ignore
     """Broker-specific options. For Redis or Postgres backends."""
-    tasks: Collection[ReceivesContext[Context] | tuple[str, Function[Context]] | str] = field(default_factory=list)  # pyright: ignore
+    tasks: "Collection[Union[ReceivesContext[Context], tuple[str, Function[Context]], str]]" = field(  # pyright: ignore[reportUnknownVariableType]
+        default_factory=list
+    )
     """Allowed list of functions to execute in this queue."""
-    scheduled_tasks: Collection[CronJob] = field(default_factory=list)  # pyright: ignore
+    scheduled_tasks: "Collection[CronJob]" = field(default_factory=list)  # pyright: ignore
     """Scheduled cron jobs to execute in this queue."""
-    cron_tz: tzinfo = timezone.utc
+    cron_tz: "tzinfo" = timezone.utc
     """Timezone for cron jobs."""
-    startup: ReceivesContext[Context] | str | Collection[ReceivesContext[Context] | str] | None = None
+    startup: "Optional[Union[ReceivesContext[Context], str, Collection[Union[ReceivesContext[Context], str]]]]" = None
     """Async callable to call on startup."""
-    shutdown: ReceivesContext[Context] | str | Collection[ReceivesContext[Context] | str] | None = None
+    shutdown: "Optional[Union[ReceivesContext[Context], str, Collection[Union[ReceivesContext[Context], str]]]]" = None
     """Async callable to call on shutdown."""
-    before_process: ReceivesContext[Context] | str | Collection[ReceivesContext[Context] | str] | None = None
+    before_process: "Optional[Union[ReceivesContext[Context], str, Collection[Union[ReceivesContext[Context], str]]]]" = None
     """Async callable to call before a job processes."""
-    after_process: ReceivesContext[Context] | str | Collection[ReceivesContext[Context] | str] | None = None
+    after_process: "Optional[Union[ReceivesContext[Context], str, Collection[Union[ReceivesContext[Context], str]]]]" = None
     """Async callable to call after a job processes."""
-    timers: PartialTimersDict | None = None
+    timers: "Optional[PartialTimersDict]" = None
     """Dict with various timer overrides in seconds
             schedule: how often we poll to schedule jobs
             stats: how often to update stats
@@ -233,11 +233,11 @@ class QueueConfig:
     """How long to wait to dequeue."""
     burst: bool = False
     """If True, the worker will process jobs in burst mode."""
-    max_burst_jobs: int | None = None
+    max_burst_jobs: "Optional[int]" = None
     """The maximum number of jobs to process in burst mode."""
     metadata: "Optional[JsonDict]" = None
     """Arbitrary data to pass to the worker which it will register with saq."""
-    multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing"
+    multiprocessing_mode: 'Literal["multiprocessing", "threading"]' = "multiprocessing"
     """Executes with the multiprocessing or threading backend. Multi-processing is recommended and how SAQ is designed to work."""
     separate_process: bool = True
     """Executes as a separate event loop when True.
@@ -249,14 +249,14 @@ class QueueConfig:
     for running jobs to complete naturally before forcing cancellation.
     If None, uses SAQ's default.
     """
-    cancellation_hard_deadline_s: Optional[float] = None
+    cancellation_hard_deadline_s: "Optional[float]" = None
     """Absolute deadline in seconds for task cancellation.
 
     After this time, tasks are forcibly terminated regardless of grace period.
     This prevents zombie tasks from blocking shutdown indefinitely.
     If None, uses SAQ's default (1.0s).
     """
-    poll_interval: float | None = None
+    poll_interval: "Optional[float]" = None
     """Queue polling interval in seconds.
 
     Controls how frequently the worker checks the queue for new jobs.
@@ -288,11 +288,11 @@ class QueueConfig:
         self.shutdown = [self._get_or_import_task(task) for task in self.shutdown or []]  # pyright: ignore
         self.before_process = [self._get_or_import_task(task) for task in self.before_process or []]  # pyright: ignore
         self.after_process = [self._get_or_import_task(task) for task in self.after_process or []]  # pyright: ignore
-        self._broker_type: Literal["redis", "postgres", "http"] | None = None
-        self._queue_class: type[Queue] | None = None
+        self._broker_type: Optional[Literal["redis", "postgres", "http"]] = None
+        self._queue_class: Optional[type[Queue]] = None
         self._normalized = True
 
-    def get_broker(self) -> Any:
+    def get_broker(self) -> "Any":
         """Get the configured Broker connection.
 
         Raises:
@@ -319,7 +319,7 @@ class QueueConfig:
 
             self.broker_instance = AsyncConnectionPool(
                 self.dsn,
-                check=AsyncConnectionPool.check_connection,
+                check=AsyncConnectionPool.check_connection,  # pyright: ignore[reportUnknownMemberType]
                 open=False,
             )
             self._ensure_postgres_pool_defaults()
@@ -352,7 +352,7 @@ class QueueConfig:
         if not self._is_instance_of(self.broker_instance, "psycopg_pool", "AsyncConnectionPool"):
             return
 
-        kwargs: MutableMapping[str, Any] | None = getattr(self.broker_instance, "kwargs", None)
+        kwargs: Optional[MutableMapping[str, Any]] = getattr(self.broker_instance, "kwargs", None)
         if kwargs is None:
             self.broker_instance.kwargs = {}
             kwargs = self.broker_instance.kwargs  # pyright: ignore
@@ -369,7 +369,7 @@ class QueueConfig:
         return isinstance(obj, cls)
 
     @property
-    def broker_type(self) -> Literal["redis", "postgres", "http"]:
+    def broker_type(self) -> 'Literal["redis", "postgres", "http"]':
         """Type of broker to use.
 
         Raises:
@@ -393,7 +393,7 @@ class QueueConfig:
         return self._broker_type
 
     @property
-    def _broker_options(self) -> RedisQueueOptions | PostgresQueueOptions | dict[str, Any]:
+    def _broker_options(self) -> "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]":
         """Broker-specific options.
 
         Returns:
@@ -404,7 +404,7 @@ class QueueConfig:
         return self.broker_options
 
     @property
-    def queue_class(self) -> type[Queue]:
+    def queue_class(self) -> "type[Queue]":
         """Type of queue to use.
 
         Raises:
@@ -435,8 +435,8 @@ class QueueConfig:
 
     @staticmethod
     def _get_or_import_task(
-        task_or_import_string: str | tuple[str, Function[Context]] | ReceivesContext[Context],
-    ) -> ReceivesContext[Context]:
+        task_or_import_string: "Union[str, tuple[str, Function[Context]], ReceivesContext[Context]]",
+    ) -> "ReceivesContext[Context]":
         """Get or import a task.
 
         Args:
