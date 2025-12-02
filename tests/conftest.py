@@ -26,6 +26,6 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-@pytest.fixture(name="redis", autouse=True)
+@pytest.fixture(name="redis")
 async def fx_redis(redis_service: RedisService) -> AsyncGenerator[Redis, None]:
     yield Redis(host=redis_service.host, port=redis_service.port)

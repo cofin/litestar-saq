@@ -169,7 +169,7 @@ class Worker(SaqWorker[Context]):
             return
 
         try:
-            import structlog  # type: ignore[import-not-found]  # pyright: ignore[reportMissingImports]
+            import structlog  # pyright: ignore[reportMissingImports]
 
             context = self.get_structlog_context()
             structlog.contextvars.bind_contextvars(**context)  # pyright: ignore[reportUnknownMemberType]
