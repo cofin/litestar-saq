@@ -17,7 +17,6 @@ def mock_queue() -> Mock:
 
 @pytest.fixture
 def create_worker(mock_queue: Mock) -> Any:
-
     def _create_worker(
         *,
         worker_id: "Optional[str]" = "test-worker-123",
@@ -30,7 +29,7 @@ def create_worker(mock_queue: Mock) -> Any:
 
         return Worker(
             queue=mock_queue,
-            functions=[("dummy", dummy_task)],
+            functions=[("dummy", dummy_task)],  # type: ignore[list-item]
             id=worker_id,
             concurrency=concurrency,
             separate_process=separate_process,
@@ -340,7 +339,7 @@ def test_run_saq_worker_does_not_configure_for_in_process(
 async def test_real_structlog_integration(create_worker: Any) -> None:
     """Integration test with real structlog library."""
     try:
-        import structlog
+        import structlog  # pyright: ignore
     except ImportError:
         pytest.skip("structlog not available")
 
