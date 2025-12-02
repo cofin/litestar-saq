@@ -17,7 +17,7 @@ classifiers = [
 ]
 dependencies = [
  "litestar>=2.0.1",
- "saq>=0.24.4",
+ "saq>=0.26.0",
 ]
 description = "Litestar integration for SAQ"
 keywords = ["litestar", "saq"]
@@ -25,7 +25,7 @@ license = { text = "MIT" }
 name = "litestar-saq"
 readme = "README.md"
 requires-python = ">=3.9"
-version = "0.5.3"
+version = "0.6.0"
 
 [project.optional-dependencies]
 hiredis = ["hiredis"]
@@ -77,7 +77,7 @@ test = [
 allow_dirty = true
 commit = false
 commit_args = "--no-verify"
-current_version = "0.5.3"
+current_version = "0.6.0"
 ignore_missing_files = false
 ignore_missing_version = false
 message = "chore(release): bump to `v{new_version}`"

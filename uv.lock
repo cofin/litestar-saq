@@ -992,7 +992,7 @@ name = "importlib-metadata"
 version = "8.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zipp" },
+    { name = "zipp", marker = "python_full_version < '3.10'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/76/66/650a33bd90f786193e4de4b3ad86ea60b53c89b669a5c7be931fac31cdb0/importlib_metadata-8.7.0.tar.gz", hash = "sha256:d13b81ad223b890aa16c5471f2ac3056cf76c5f10f82d6f9292f0b415f389000", size = 56641, upload-time = "2025-04-27T15:29:01.736Z" }
 wheels = [
@@ -1183,7 +1183,7 @@ wheels = [
 
 [[package]]
 name = "litestar-saq"
-version = "0.5.3"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "litestar" },
@@ -1268,7 +1268,7 @@ requires-dist = [
     { name = "hiredis", marker = "extra == 'hiredis'" },
     { name = "litestar", specifier = ">=2.0.1" },
     { name = "psycopg", extras = ["pool", "binary"], marker = "extra == 'psycopg'" },
-    { name = "saq", specifier = ">=0.24.4" },
+    { name = "saq", specifier = ">=0.26.0" },
 ]
 provides-extras = ["hiredis", "psycopg"]
 
