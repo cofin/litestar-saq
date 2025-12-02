@@ -1,4 +1,5 @@
 import signal
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -7,20 +8,88 @@ from litestar.cli._utils import LitestarGroup
 from redis.asyncio import Redis
 
 from litestar_saq.cli import _terminate_worker_processes
-from tests.test_cli import APP_DEFAULT_CONFIG_FILE_CONTENT
 from tests.test_cli.conftest import CreateAppFileFixture
 
+if TYPE_CHECKING:
+    from pytest_databases.docker.redis import RedisService
+
 pytestmark = pytest.mark.anyio
+
+
+def get_app_config_content(redis_port: int) -> str:
+    """Generate app config content with dynamic Redis port."""
+    return f"""
+from __future__ import annotations
+
+import asyncio
+from logging import getLogger
+from typing import TYPE_CHECKING
+
+from examples import tasks
+from litestar import Controller, Litestar, get
+
+from litestar_saq import CronJob, QueueConfig, SAQConfig, SAQPlugin
+
+if TYPE_CHECKING:
+    from saq.types import Context, QueueInfo
+
+    from litestar_saq.config import TaskQueues
+
+logger = getLogger(__name__)
+
+
+async def system_upkeep(_: Context) -> None:
+    logger.info("Performing system upkeep operations.")
+    await asyncio.sleep(1)
+    logger.info("System upkeep complete.")
+
+
+async def background_worker_task(_: Context) -> None:
+    logger.info("Performing background worker task.")
+    await asyncio.sleep(1)
+    logger.info("Background worker task complete.")
+
+
+async def system_task(_: Context) -> None:
+    logger.info("Performing simple system task")
+    await asyncio.sleep(1)
+    logger.info("System task complete.")
+
+
+class SampleController(Controller):
+    @get(path="/samples")
+    async def samples_queue_info(self, task_queues: TaskQueues) -> QueueInfo:
+        queue = task_queues.get("samples")
+        return await queue.info()
+
+
+saq = SAQPlugin(
+    config=SAQConfig(
+        web_enabled=True,
+        use_server_lifespan=True,
+        queue_configs=[
+            QueueConfig(
+                dsn="redis://localhost:{redis_port}/0",
+                name="samples",
+                tasks=[tasks.background_worker_task, tasks.system_task, tasks.system_upkeep],
+                scheduled_tasks=[CronJob(function=tasks.system_upkeep, cron="* * * * *", timeout=600, ttl=2000)],
+            ),
+        ],
+    ),
+)
+app = Litestar(plugins=[saq], route_handlers=[SampleController])
+"""
 
 
 async def test_basic_command(
     runner: CliRunner,
     create_app_file: CreateAppFileFixture,
     root_command: LitestarGroup,
-    redis_service: None,
+    redis_service: "RedisService",
     redis: Redis,
 ) -> None:
-    app_file = create_app_file("command_test_app.py", content=APP_DEFAULT_CONFIG_FILE_CONTENT)
+    app_content = get_app_config_content(redis_service.port)
+    app_file = create_app_file("command_test_app.py", content=app_content)
     result = runner.invoke(root_command, ["--app", f"{app_file.stem}:app", "workers", "status"])
 
     assert result.exit_code == 0
