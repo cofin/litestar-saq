@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 class SampleController(Controller):
     @get(path="/samples")
     async def samples_queue_info(self, task_queues: TaskQueues) -> QueueInfo:
-        """Check database available and returns app config info."""
         queue = task_queues.get("samples")
         return await queue.info()
 

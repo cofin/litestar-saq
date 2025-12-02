@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from litestar.utils.module_loader import import_string
 from saq import Job as SaqJob
 from saq.job import CronJob as SaqCronJob
+from saq.types import Context
 from saq.worker import Worker as SaqWorker
 
 if TYPE_CHECKING:
@@ -23,38 +24,68 @@ class Job(SaqJob):
 
 
 @dataclass
-class CronJob(SaqCronJob):
+class CronJob(SaqCronJob[Context]):
     """Cron Job Details"""
 
-    function: "Union[Function, str]"  # type: ignore[assignment]
+    function: "Union[Function[Context], str]"  # type: ignore[assignment]
     meta: "dict[str, Any]" = field(default_factory=dict)  # pyright: ignore
 
     def __post_init__(self) -> None:
         self.function = self._get_or_import_function(self.function)  # pyright: ignore[reportIncompatibleMethodOverride]
 
     @staticmethod
-    def _get_or_import_function(function_or_import_string: "Union[str, Function]") -> "Function":
+    def _get_or_import_function(
+        function_or_import_string: "Union[str, Function[Context]]",
+    ) -> "Function[Context]":
         if isinstance(function_or_import_string, str):
-            return cast("Function", import_string(function_or_import_string))
+            return cast("Function[Context]", import_string(function_or_import_string))
         return function_or_import_string
 
 
-class Worker(SaqWorker):
-    """Worker."""
+class Worker(SaqWorker[Context]):
+    """Worker.
+
+    Extends SAQ's Worker with Litestar lifecycle integration.
+
+    Args:
+        queue: SAQ Queue instance.
+        functions: Task functions to register.
+        id: Optional worker identifier.
+        concurrency: Number of concurrent tasks (default: 10).
+        cron_jobs: Scheduled cron jobs.
+        cron_tz: Timezone for cron jobs (default: UTC).
+        startup: Async callable(s) to run on worker startup.
+        shutdown: Async callable(s) to run on worker shutdown.
+        before_process: Async callable(s) to run before each job.
+        after_process: Async callable(s) to run after each job.
+        timers: Dict with timer overrides (schedule, stats, sweep, abort).
+        dequeue_timeout: How long to wait for dequeue (default: 0).
+        burst: If True, process jobs in burst mode.
+        max_burst_jobs: Maximum jobs in burst mode.
+        metadata: Arbitrary metadata to register with SAQ.
+        separate_process: Execute as separate event loop (default: True).
+        multiprocessing_mode: Backend for multiprocessing (default: "multiprocessing").
+        shutdown_grace_period_s: Time in seconds to allow jobs to complete
+            gracefully before forced shutdown. Defaults to SAQ's internal default.
+        cancellation_hard_deadline_s: Absolute deadline for task cancellation.
+            Prevents zombie tasks from blocking shutdown. Defaults to SAQ's default (1.0s).
+        poll_interval: Queue polling interval in seconds. Lower values reduce
+            latency but increase CPU/database load. Defaults to backend-specific value.
+    """
 
     def __init__(
         self,
         queue: "Queue",
-        functions: "Collection[Union[Function, tuple[str, Function]]]",
+        functions: "Collection[Union[Function[Context], tuple[str, Function[Context]]]]",
         *,
         id: "Optional[str]" = None,  # noqa: A002
         concurrency: int = 10,
         cron_jobs: "Optional[Collection[CronJob]]" = None,
         cron_tz: "tzinfo" = timezone.utc,
-        startup: "Optional[Union[ReceivesContext, Collection[ReceivesContext]]]" = None,
-        shutdown: "Optional[Union[ReceivesContext, Collection[ReceivesContext]]]" = None,
-        before_process: "Optional[Union[ReceivesContext, Collection[ReceivesContext]]]" = None,
-        after_process: "Optional[Union[ReceivesContext, Collection[ReceivesContext]]]" = None,
+        startup: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]" = None,
+        shutdown: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]" = None,
+        before_process: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]" = None,
+        after_process: "Optional[Union[ReceivesContext[Context], Collection[ReceivesContext[Context]]]]" = None,
         timers: "Optional[PartialTimersDict]" = None,
         dequeue_timeout: float = 0,
         burst: bool = False,
@@ -62,29 +93,97 @@ class Worker(SaqWorker):
         metadata: "Optional[JsonDict]" = None,
         separate_process: bool = True,
         multiprocessing_mode: Literal["multiprocessing", "threading"] = "multiprocessing",
+        shutdown_grace_period_s: "Optional[int]" = None,
+        cancellation_hard_deadline_s: "Optional[float]" = None,
+        poll_interval: "Optional[float]" = None,
     ) -> None:
         self.separate_process = separate_process
         self.multiprocessing_mode = multiprocessing_mode
-        super().__init__(
-            queue,
-            functions,
-            id=id,
-            concurrency=concurrency,
-            cron_jobs=cron_jobs,
-            cron_tz=cron_tz,
-            startup=startup,
-            shutdown=shutdown,
-            before_process=before_process,
-            after_process=after_process,
-            timers=timers,
-            dequeue_timeout=dequeue_timeout,
-            burst=burst,
-            max_burst_jobs=max_burst_jobs,
-            metadata=metadata,
-        )
+
+        # Build kwargs for super().__init__, only including new params if provided
+        kwargs: dict[str, Any] = {
+            "id": id,
+            "concurrency": concurrency,
+            "cron_jobs": cron_jobs,
+            "cron_tz": cron_tz,
+            "startup": startup,
+            "shutdown": shutdown,
+            "before_process": before_process,
+            "after_process": after_process,
+            "timers": timers,
+            "dequeue_timeout": dequeue_timeout,
+            "burst": burst,
+            "max_burst_jobs": max_burst_jobs,
+            "metadata": metadata,
+        }
+
+        # Add SAQ 0.26+ parameters if provided
+        if shutdown_grace_period_s is not None:
+            kwargs["shutdown_grace_period_s"] = shutdown_grace_period_s
+        if cancellation_hard_deadline_s is not None:
+            kwargs["cancellation_hard_deadline_s"] = cancellation_hard_deadline_s
+        if poll_interval is not None:
+            kwargs["poll_interval"] = poll_interval
+
+        super().__init__(queue, functions, **kwargs)
+
+    def get_structlog_context(self) -> dict[str, Any]:
+        """Build context dictionary for structlog binding.
+
+        Returns:
+            Dictionary of context key-value pairs including worker_id,
+            queue_name, concurrency, separate_process, and any custom metadata.
+        """
+        context: dict[str, Any] = {
+            "worker_id": self.id or "unknown",
+            "queue_name": self.queue.name,
+            "concurrency": self.concurrency,
+            "separate_process": self.separate_process,
+        }
+
+        # Add custom metadata with prefix to avoid collisions
+        if self._metadata:
+            for key, value in self._metadata.items():
+                context[f"worker_meta_{key}"] = value
+
+        return context
+
+    def configure_structlog_context(self) -> None:
+        """Configure structlog context with worker metadata if structlog is installed.
+
+        This method:
+        1. Checks if structlog is available
+        2. Binds worker-specific context to contextvars
+        3. Fails silently if errors occur (context binding is optional)
+
+        Context includes:
+        - worker_id: Unique identifier for this worker
+        - queue_name: Name of the queue this worker processes
+        - concurrency: Number of concurrent jobs
+        - separate_process: Whether worker runs in separate process
+        - worker_meta_*: Any custom metadata provided in Worker.metadata
+        """
+        from litestar_saq.plugin import STRUCTLOG_INSTALLED
+
+        if not STRUCTLOG_INSTALLED:
+            return
+
+        try:
+            import structlog  # pyright: ignore[reportMissingImports]
+
+            context = self.get_structlog_context()
+            structlog.contextvars.bind_contextvars(**context)  # pyright: ignore[reportUnknownMemberType]
+        except Exception as e:  # noqa: BLE001
+            # Log at debug level only - context binding is nice-to-have
+            import logging
+
+            logging.getLogger(__name__).debug("Failed to configure structlog context: %s", e)
 
     async def on_app_startup(self) -> None:
         """Attach the worker to the running event loop."""
+        # Configure structlog context before starting
+        self.configure_structlog_context()
+
         if not self.separate_process:
             self.SIGNALS = []
             loop = asyncio.get_running_loop()

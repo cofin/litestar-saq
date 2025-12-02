@@ -4,7 +4,7 @@ import time
 from contextlib import contextmanager
 from importlib.util import find_spec
 from multiprocessing import Process
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from litestar.plugins import CLIPlugin, InitPluginProtocol
 
@@ -17,11 +17,9 @@ if TYPE_CHECKING:
     from litestar import Litestar
     from litestar.config.app import AppConfig
     from saq.queue.base import Queue
-    from saq.types import Function, ReceivesContext
+    from saq.types import Context, Function, ReceivesContext
 
     from litestar_saq.config import SAQConfig, TaskQueues
-
-T = TypeVar("T")
 
 STRUCTLOG_INSTALLED = find_spec("structlog") is not None
 
@@ -102,20 +100,23 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             queue_config.name: Worker(
                 queue=self.get_queue(queue_config.name),
                 id=queue_config.id,
-                functions=cast("Collection[Function]", queue_config.tasks),
+                functions=cast("Collection[Function[Context]]", queue_config.tasks),
                 cron_jobs=queue_config.scheduled_tasks,
                 cron_tz=queue_config.cron_tz,
                 concurrency=queue_config.concurrency,
-                startup=cast("Collection[ReceivesContext]", queue_config.startup),
-                shutdown=cast("Collection[ReceivesContext]", queue_config.shutdown),
-                before_process=cast("Collection[ReceivesContext]", queue_config.before_process),
-                after_process=cast("Collection[ReceivesContext]", queue_config.after_process),
+                startup=cast("Collection[ReceivesContext[Context]]", queue_config.startup),
+                shutdown=cast("Collection[ReceivesContext[Context]]", queue_config.shutdown),
+                before_process=cast("Collection[ReceivesContext[Context]]", queue_config.before_process),
+                after_process=cast("Collection[ReceivesContext[Context]]", queue_config.after_process),
                 timers=queue_config.timers,
                 dequeue_timeout=queue_config.dequeue_timeout,
                 separate_process=queue_config.separate_process,
                 burst=queue_config.burst,
                 max_burst_jobs=queue_config.max_burst_jobs,
                 metadata=queue_config.metadata,
+                shutdown_grace_period_s=queue_config.shutdown_grace_period_s,
+                cancellation_hard_deadline_s=queue_config.cancellation_hard_deadline_s,
+                poll_interval=queue_config.poll_interval,
             )
             for queue_config in self._config.queue_configs
         }

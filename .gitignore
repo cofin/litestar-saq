@@ -164,3 +164,8 @@ cython_debug/
 
 .vscode/
 examples/tmp.py
+.claude
+specs
+AGENTS.md
+CLAUDE.md
+GEMINI.md

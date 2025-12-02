@@ -174,12 +174,22 @@ def show_saq_info(app: "Litestar", workers: int, plugin: "SAQPlugin") -> None:  
 
 
 def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig]") -> None:
-    """Run a worker."""
+    """Run a worker.
+
+    Args:
+        worker: The worker instance to run.
+        logging_config: Optional logging configuration to apply.
+    """
     import asyncio
 
     loop = asyncio.get_event_loop()
     if logging_config is not None:
         logging_config.configure()
+
+    # Configure structlog context for separate process workers
+    # (In-process workers configure in on_app_startup)
+    if worker.separate_process:
+        worker.configure_structlog_context()
 
     async def worker_start(w: "Worker") -> None:
         try:

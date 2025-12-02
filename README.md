@@ -17,10 +17,8 @@ from litestar import Litestar
 
 from litestar_saq import QueueConfig, SAQConfig, SAQPlugin
 
-saq = SAQPlugin(config=SAQConfig(dsn="redis://localhost:6379/0", queue_configs=[QueueConfig(name="samples")]))
+saq = SAQPlugin(config=SAQConfig(use_server_lifespan=True, queue_configs=[QueueConfig(name="samples", dsn="redis://localhost:6379/0")]))
 app = Litestar(plugins=[saq])
-
-
 ```
 
 You can start a background worker with the following command now:
