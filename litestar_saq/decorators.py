@@ -33,9 +33,15 @@ logger = logging.getLogger(__name__)
 P = ParamSpec("P")
 R = TypeVar("R")
 
+# Minimum interval to prevent excessive overhead
+MIN_HEARTBEAT_INTERVAL = 1.0
+
+# Default interval when job has no heartbeat configured
+DEFAULT_HEARTBEAT_INTERVAL = 5.0
+
 
 def monitored_job(
-    interval: float = 5.0,
+    interval: Optional[float] = None,
 ) -> Callable[
     [Callable[Concatenate["Context", P], Awaitable[R]]],
     Callable[Concatenate["Context", P], Awaitable[R]],
@@ -43,36 +49,38 @@ def monitored_job(
     """Decorator that adds automatic heartbeat monitoring to SAQ jobs.
 
     This decorator starts a background task that periodically calls job.update()
-    to send heartbeats, preventing long-running jobs from timing out. The heartbeat
-    task is automatically cleaned up when the job completes, fails, or is cancelled.
+    to send heartbeats, preventing long-running jobs from being marked as stuck
+    by SAQ's heartbeat monitor. The heartbeat task is automatically cleaned up
+    when the job completes, fails, or is cancelled.
 
     Args:
-        interval: Seconds between heartbeat updates. Defaults to 5.0 seconds.
-                 Recommended: Set to ~10% of expected job duration.
-                 Minimum: Should be > 0 to avoid excessive overhead.
+        interval: Seconds between heartbeat updates. If None (default), the interval
+                 is automatically calculated as half of the job's heartbeat timeout,
+                 with a minimum of 1 second. If the job has no heartbeat configured,
+                 defaults to 5 seconds.
 
     Returns:
         Decorated function with automatic heartbeat monitoring.
 
     Raises:
-        ValueError: If interval is <= 0.
+        ValueError: If interval is explicitly set to <= 0.
 
     Example:
-        Basic usage with default interval::
+        Auto-calculated interval (recommended)::
 
             from litestar_saq import monitored_job
 
             @monitored_job()
             async def process_data(ctx):
-                # Long-running work with automatic heartbeats
+                # Interval auto-calculated from job.heartbeat
                 await process_large_dataset()
                 return {"status": "complete"}
 
-        Custom interval::
+        Explicit interval override::
 
             @monitored_job(interval=30.0)
             async def train_model(ctx, model_id: str):
-                # Very long job - heartbeat every 30 seconds
+                # Override with explicit 30 second interval
                 model = await load_model(model_id)
                 for epoch in range(100):
                     await train_epoch(model)
@@ -83,8 +91,9 @@ def monitored_job(
         - Heartbeat failures are logged as warnings but don't fail the job
         - Works with regular jobs, cron jobs, and scheduled jobs
         - Compatible with worker before_process and after_process hooks
+        - Auto-calculated interval uses job.heartbeat / 2, floored at 1 second
     """
-    if interval <= 0:
+    if interval is not None and interval <= 0:
         msg = f"Heartbeat interval must be positive, got {interval}"
         raise ValueError(msg)
 
@@ -95,8 +104,11 @@ def monitored_job(
         async def wrapper(ctx: "Context", *args: P.args, **kwargs: P.kwargs) -> R:
             job: Optional[Job] = ctx.get("job")  # pyright: ignore[reportUnknownMemberType]
 
+            # Calculate effective interval
+            effective_interval = _calculate_interval(job, interval)
+
             # Start background heartbeat monitoring
-            heartbeat_task = asyncio.create_task(_heartbeat_loop(job, interval))
+            heartbeat_task = asyncio.create_task(_heartbeat_loop(job, effective_interval))
 
             try:
                 # Execute the actual job function
@@ -110,6 +122,32 @@ def monitored_job(
         return cast("Callable[Concatenate[Context, P], Awaitable[R]]", wrapper)
 
     return decorator
+
+
+def _calculate_interval(job: "Optional[Job]", explicit_interval: Optional[float]) -> float:
+    """Calculate the effective heartbeat interval.
+
+    Args:
+        job: The SAQ job, which may have a heartbeat setting.
+        explicit_interval: Explicitly provided interval, or None for auto-calculation.
+
+    Returns:
+        The effective interval in seconds.
+    """
+    # If explicitly set, use that value
+    if explicit_interval is not None:
+        return explicit_interval
+
+    # Auto-calculate from job's heartbeat setting
+    if job is not None:
+        job_heartbeat = getattr(job, "heartbeat", 0)
+        if job_heartbeat > 0:
+            # Use half the heartbeat timeout, with a floor of MIN_HEARTBEAT_INTERVAL
+            calculated = job_heartbeat / 2
+            return max(calculated, MIN_HEARTBEAT_INTERVAL)
+
+    # Fallback to default
+    return DEFAULT_HEARTBEAT_INTERVAL
 
 
 async def _heartbeat_loop(job: "Optional[Job]", interval: float) -> None:

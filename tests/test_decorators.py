@@ -605,3 +605,89 @@ async def test_monitored_job_with_mixed_args_kwargs() -> None:
     result = await task(ctx, "mixed", 10, flag=True)
 
     assert result == {"name": "mixed", "count": 10, "flag": True}
+
+
+# =============================================================================
+# Auto-Calculated Interval Tests
+# =============================================================================
+
+
+def test_calculate_interval_explicit_override() -> None:
+    """Test explicit interval overrides auto-calculation."""
+    from litestar_saq.decorators import _calculate_interval
+
+    job_mock = Mock()
+    job_mock.heartbeat = 60
+
+    # Explicit interval should be used regardless of job.heartbeat
+    result = _calculate_interval(job_mock, 10.0)
+    assert result == 10.0
+
+
+def test_calculate_interval_from_job_heartbeat() -> None:
+    """Test interval auto-calculated as half of job.heartbeat."""
+    from litestar_saq.decorators import _calculate_interval
+
+    job_mock = Mock()
+    job_mock.heartbeat = 60
+
+    result = _calculate_interval(job_mock, None)
+    assert result == 30.0  # 60 / 2
+
+
+def test_calculate_interval_respects_floor() -> None:
+    """Test interval respects minimum floor of 1 second."""
+    from litestar_saq.decorators import _calculate_interval
+
+    job_mock = Mock()
+    job_mock.heartbeat = 1  # Would calculate to 0.5
+
+    result = _calculate_interval(job_mock, None)
+    assert result == 1.0  # Floored to MIN_HEARTBEAT_INTERVAL
+
+
+def test_calculate_interval_no_job() -> None:
+    """Test fallback to default when no job."""
+    from litestar_saq.decorators import DEFAULT_HEARTBEAT_INTERVAL, _calculate_interval
+
+    result = _calculate_interval(None, None)
+    assert result == DEFAULT_HEARTBEAT_INTERVAL
+
+
+def test_calculate_interval_job_heartbeat_zero() -> None:
+    """Test fallback to default when job.heartbeat is 0 (disabled)."""
+    from litestar_saq.decorators import DEFAULT_HEARTBEAT_INTERVAL, _calculate_interval
+
+    job_mock = Mock()
+    job_mock.heartbeat = 0  # Heartbeat disabled
+
+    result = _calculate_interval(job_mock, None)
+    assert result == DEFAULT_HEARTBEAT_INTERVAL
+
+
+def test_calculate_interval_job_missing_heartbeat_attr() -> None:
+    """Test fallback when job doesn't have heartbeat attribute."""
+    from litestar_saq.decorators import DEFAULT_HEARTBEAT_INTERVAL, _calculate_interval
+
+    job_mock = Mock(spec=[])  # No attributes
+
+    result = _calculate_interval(job_mock, None)
+    assert result == DEFAULT_HEARTBEAT_INTERVAL
+
+
+async def test_monitored_job_auto_interval_from_heartbeat() -> None:
+    """Test decorator auto-calculates interval from job.heartbeat."""
+    job_mock = AsyncMock()
+    job_mock.id = "job-auto"
+    job_mock.heartbeat = 60  # Should result in 30 second interval
+    job_mock.update = AsyncMock()
+    ctx = cast(Context, {"job": job_mock})
+
+    @monitored_job()  # No explicit interval
+    async def task(ctx: Context) -> str:
+        # Sleep long enough for heartbeat check but short for test
+        await asyncio.sleep(0.01)
+        return "done"
+
+    result = await task(ctx)
+    assert result == "done"
