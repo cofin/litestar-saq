@@ -127,8 +127,63 @@ class Worker(SaqWorker[Context]):
 
         super().__init__(queue, functions, **kwargs)
 
+    def get_structlog_context(self) -> dict[str, Any]:
+        """Build context dictionary for structlog binding.
+
+        Returns:
+            Dictionary of context key-value pairs including worker_id,
+            queue_name, concurrency, separate_process, and any custom metadata.
+        """
+        context: dict[str, Any] = {
+            "worker_id": self.id or "unknown",
+            "queue_name": self.queue.name,
+            "concurrency": self.concurrency,
+            "separate_process": self.separate_process,
+        }
+
+        # Add custom metadata with prefix to avoid collisions
+        if self._metadata:
+            for key, value in self._metadata.items():
+                context[f"worker_meta_{key}"] = value
+
+        return context
+
+    def configure_structlog_context(self) -> None:
+        """Configure structlog context with worker metadata if structlog is installed.
+
+        This method:
+        1. Checks if structlog is available
+        2. Binds worker-specific context to contextvars
+        3. Fails silently if errors occur (context binding is optional)
+
+        Context includes:
+        - worker_id: Unique identifier for this worker
+        - queue_name: Name of the queue this worker processes
+        - concurrency: Number of concurrent jobs
+        - separate_process: Whether worker runs in separate process
+        - worker_meta_*: Any custom metadata provided in Worker.metadata
+        """
+        from litestar_saq.plugin import STRUCTLOG_INSTALLED
+
+        if not STRUCTLOG_INSTALLED:
+            return
+
+        try:
+            import structlog  # type: ignore[import-not-found]  # pyright: ignore[reportMissingImports]
+
+            context = self.get_structlog_context()
+            structlog.contextvars.bind_contextvars(**context)  # pyright: ignore[reportUnknownMemberType]
+        except Exception as e:  # noqa: BLE001
+            # Log at debug level only - context binding is nice-to-have
+            import logging
+
+            logging.getLogger(__name__).debug("Failed to configure structlog context: %s", e)
+
     async def on_app_startup(self) -> None:
         """Attach the worker to the running event loop."""
+        # Configure structlog context before starting
+        self.configure_structlog_context()
+
         if not self.separate_process:
             self.SIGNALS = []
             loop = asyncio.get_running_loop()
