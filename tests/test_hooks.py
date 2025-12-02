@@ -28,10 +28,13 @@ async def test_startup_logger_logs_worker_info(caplog: pytest.LogCaptureFixture)
     """Test startup_logger logs worker ID and queue name."""
     queue_mock = Mock()
     queue_mock.name = "test-queue"
-    ctx = cast(Context, {
-        "worker_id": "test-worker-1",
-        "queue": queue_mock,
-    })
+    ctx = cast(
+        Context,
+        {
+            "worker_id": "test-worker-1",
+            "queue": queue_mock,
+        },
+    )
 
     with caplog.at_level(logging.INFO, logger="litestar_saq.hooks"):
         await startup_logger(ctx)
@@ -59,10 +62,13 @@ async def test_startup_logger_handles_missing_keys(caplog: pytest.LogCaptureFixt
 
 async def test_startup_logger_handles_queue_without_name(caplog: pytest.LogCaptureFixture) -> None:
     """Test startup_logger handles queue object without name attribute."""
-    ctx = cast(Context, {
-        "worker_id": "worker-123",
-        "queue": object(),  # No 'name' attribute
-    })
+    ctx = cast(
+        Context,
+        {
+            "worker_id": "worker-123",
+            "queue": object(),  # No 'name' attribute
+        },
+    )
 
     with caplog.at_level(logging.INFO, logger="litestar_saq.hooks"):
         await startup_logger(ctx)
@@ -70,6 +76,7 @@ async def test_startup_logger_handles_queue_without_name(caplog: pytest.LogCaptu
     assert "SAQ worker starting" in caplog.text
     record = caplog.records[0]
     assert record.queue_name == "unknown"
+
 
 # =============================================================================
 # Shutdown Logger Tests
@@ -80,10 +87,13 @@ async def test_shutdown_logger_logs_worker_info(caplog: pytest.LogCaptureFixture
     """Test shutdown_logger logs worker ID and queue name."""
     queue_mock = Mock()
     queue_mock.name = "default"
-    ctx = cast(Context, {
-        "worker_id": "worker-456",
-        "queue": queue_mock,
-    })
+    ctx = cast(
+        Context,
+        {
+            "worker_id": "worker-456",
+            "queue": queue_mock,
+        },
+    )
 
     with caplog.at_level(logging.INFO, logger="litestar_saq.hooks"):
         await shutdown_logger(ctx)
@@ -107,6 +117,7 @@ async def test_shutdown_logger_handles_missing_keys(caplog: pytest.LogCaptureFix
     record = caplog.records[0]
     assert record.worker_id == "unknown"
     assert record.queue_name == "unknown"
+
 
 # =============================================================================
 # Before Process Logger Tests
@@ -141,6 +152,7 @@ async def test_before_process_logger_handles_missing_job(caplog: pytest.LogCaptu
     record = caplog.records[0]
     assert record.job_id == "unknown"
     assert record.function == "unknown"
+
 
 # =============================================================================
 # After Process Logger Tests
@@ -178,6 +190,7 @@ async def test_after_process_logger_handles_missing_job(caplog: pytest.LogCaptur
     assert record.job_id == "unknown"
     assert record.function == "unknown"
     assert record.status == "unknown"
+
 
 # =============================================================================
 # Timing Hooks Tests
@@ -241,6 +254,7 @@ async def test_timing_after_handles_missing_job(caplog: pytest.LogCaptureFixture
     record = caplog.records[0]
     assert record.job_id == "unknown"
     assert record.function == "unknown"
+
 
 # =============================================================================
 # Integration Tests

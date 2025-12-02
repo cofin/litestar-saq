@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from litestar_saq.config import TaskQueues
 
 
-async def example_task(ctx: Context, *, name: str) -> dict[str, str]:
+async def example_task(_ctx: Context, *, name: str) -> dict[str, str]:
     """Example background task that greets a user.
 
     This task demonstrates a simple async operation with timing hooks
@@ -42,18 +42,18 @@ async def example_task(ctx: Context, *, name: str) -> dict[str, str]:
     return {"message": f"Hello, {name}!"}
 
 
-async def slow_task(ctx: Context, *, duration: float = 2.0) -> dict[str, float]:
+async def slow_task(_ctx: Context, *, duration: float = 2.0) -> dict[str, float]:
     """Example slow task for timing demonstration.
 
     Args:
-        ctx: SAQ context.
+        _ctx: SAQ context.
         duration: How long to sleep (default 2 seconds).
     """
     await asyncio.sleep(duration)
     return {"slept_for": duration}
 
 
-async def scheduled_task(ctx: Context) -> dict[str, str]:
+async def scheduled_task(_ctx: Context) -> dict[str, str]:
     """Example scheduled task that runs on cron."""
     return {"status": "scheduled task executed"}
 
