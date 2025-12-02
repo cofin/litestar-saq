@@ -69,7 +69,8 @@ test = [
   "anyio",
   "litestar[jinja,redis,standard]",
   "psycopg[pool,binary]",
-  "sniffio"
+  "sniffio",
+  "structlog"
 ]
 
 

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
@@ -8,10 +9,22 @@ from litestar_saq.base import Worker
 pytestmark = pytest.mark.anyio
 
 
+async def _async_noop() -> None:
+    """Async no-op helper for mock methods."""
+    pass
+
+
 @pytest.fixture
 def mock_queue() -> Mock:
-    queue = Mock(spec=["name", "connect", "disconnect"])
+    queue = Mock(spec=["name", "connect", "disconnect", "sweep", "schedule", "stats", "info"])
     queue.name = "test-queue"
+    # Make async methods return fresh coroutines each time
+    queue.connect = Mock(side_effect=lambda: _async_noop())
+    queue.disconnect = Mock(side_effect=lambda: _async_noop())
+    queue.sweep = Mock(side_effect=lambda *_args, **_kwargs: _async_noop())
+    queue.schedule = Mock(side_effect=lambda *_args, **_kwargs: _async_noop())
+    queue.stats = Mock(side_effect=lambda *_args, **_kwargs: _async_noop())
+    queue.info = Mock(side_effect=lambda *_args, **_kwargs: _async_noop())
     return queue
 
 
@@ -247,6 +260,14 @@ async def test_on_app_startup_for_in_process_worker(create_worker: Any) -> None:
     # Assert - should create asyncio task
     assert hasattr(worker, "_saq_asyncio_tasks")
 
+    # Cleanup - cancel the task to avoid "Task exception never retrieved" warning
+    if hasattr(worker, "_saq_asyncio_tasks"):
+        worker._saq_asyncio_tasks.cancel()
+        try:
+            await worker._saq_asyncio_tasks
+        except asyncio.CancelledError:
+            pass
+
 
 async def test_on_app_startup_for_separate_process_worker(create_worker: Any) -> None:
     """Test on_app_startup for separate_process=True workers."""
@@ -282,8 +303,17 @@ def test_run_saq_worker_calls_configure_structlog_for_separate_process(
     worker = create_worker(separate_process=True)
 
     # Mock the asyncio event loop to prevent actual worker execution
+    # We need to properly close coroutines to avoid warnings
     mock_loop = Mock()
-    mock_loop.run_until_complete = Mock(side_effect=KeyboardInterrupt)
+
+    def run_until_complete_side_effect(coro_or_task: Any) -> None:
+        # Close any coroutines to prevent "never awaited" warnings
+        if hasattr(coro_or_task, "close"):
+            coro_or_task.close()
+        raise KeyboardInterrupt
+
+    mock_loop.run_until_complete = Mock(side_effect=run_until_complete_side_effect)
+    mock_loop.create_task = Mock(side_effect=lambda coro: coro)  # Return coroutine as-is
 
     # Act
     with (
@@ -316,8 +346,16 @@ def test_run_saq_worker_does_not_configure_for_in_process(
     worker = create_worker(separate_process=False)
 
     # Mock the asyncio event loop to prevent actual worker execution
+    # We need to properly close coroutines to avoid warnings
     mock_loop = Mock()
-    mock_loop.run_until_complete = Mock(return_value=None)
+
+    def run_until_complete_side_effect(coro_or_task: Any) -> None:
+        # Close any coroutines to prevent "never awaited" warnings
+        if hasattr(coro_or_task, "close"):
+            coro_or_task.close()
+
+    mock_loop.run_until_complete = Mock(side_effect=run_until_complete_side_effect)
+    mock_loop.create_task = Mock(side_effect=lambda coro: coro)  # Return coroutine as-is
 
     # Act
     with (
