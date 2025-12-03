@@ -229,8 +229,9 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
         logging_config: Optional logging configuration to apply.
     """
     import asyncio
+
     from litestar.logging.config import StructLoggingConfig
-    
+
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
