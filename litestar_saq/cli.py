@@ -231,7 +231,7 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
     import asyncio
 
     try:
-        loop = asyncio.get_running_loop()
+        loop = asyncio.get_event_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
