@@ -229,7 +229,8 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
         logging_config: Optional logging configuration to apply.
     """
     import asyncio
-
+    from litestar.logging.config import StructLoggingConfig
+    
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
@@ -243,6 +244,8 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
     # (In-process workers configure in on_app_startup)
     if worker.separate_process:
         worker.configure_structlog_context()
+        if isinstance(logging_config, StructLoggingConfig) and logging_config.standard_lib_logging_config is not None:
+            _ = logging_config.standard_lib_logging_config.configure()
 
     def handle_sigterm(_signum: int, _frame: Any) -> None:
         """Handle SIGTERM in worker process."""
