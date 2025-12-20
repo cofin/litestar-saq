@@ -238,13 +238,22 @@ def build_controller(  # noqa: C901
 
         # static site
         @get(
-            [url_base, f"{url_base}/", f"{url_base}/{{path:path}}"],
+            [
+                url_base,
+                f"{url_base}/",
+                f"{url_base}/queues/{{queue_id:str}}",
+                f"{url_base}/queues/{{queue_id:str}}/jobs/{{job_id:str}}",
+            ],
             operation_id="WorkerIndex",
             name="worker:index",
             media_type=MediaType.HTML,
             include_in_schema=False,
         )
-        async def index(self, path: Optional[str] = None) -> str:
+        async def index(
+            self,
+            queue_id: Optional[str] = None,
+            job_id: Optional[str] = None,
+        ) -> str:
             return html_template
 
     return SAQController
