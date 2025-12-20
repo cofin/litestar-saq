@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any
 
 import pytest
@@ -103,3 +101,34 @@ def test_health_endpoint_returns_500_when_no_queues() -> None:
         resp = client.get("/saq/health")
         assert resp.status_code == 500
         assert resp.text == "Service Unavailable"
+
+
+def test_api_routes_return_json_not_html() -> None:
+    """Verify API routes return JSON, not HTML from the catch-all index route."""
+    queues = TaskQueues(queues={"default": DummyQueue("default")})
+    controller = build_controller("/saq")
+
+    app = Litestar(
+        route_handlers=[controller],
+        dependencies={"task_queues": Provide(lambda: queues, sync_to_thread=False)},
+        signature_namespace={"TaskQueues": TaskQueues, "QueueInfo": QueueInfo},
+    )
+
+    with TestClient(app) as client:
+        # API queue list should return JSON
+        resp = client.get("/saq/api/queues")
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert "queues" in data
+
+        # API queue detail should return JSON
+        resp_detail = client.get("/saq/api/queues/default")
+        assert resp_detail.status_code == 200
+        assert resp_detail.headers.get("content-type", "").startswith("application/json")
+
+        # UI routes should return HTML
+        resp_ui = client.get("/saq/")
+        assert resp_ui.status_code == 200
+        assert "text/html" in resp_ui.headers.get("content-type", "")
+        assert "root_path" in resp_ui.text
