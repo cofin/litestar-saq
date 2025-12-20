@@ -1,3 +1,4 @@
+import contextlib
 import signal
 import sys
 import time
@@ -248,22 +249,46 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
         if isinstance(logging_config, StructLoggingConfig) and logging_config.standard_lib_logging_config is not None:
             _ = logging_config.standard_lib_logging_config.configure()
 
-    def handle_sigterm(_signum: int, _frame: Any) -> None:
-        """Handle SIGTERM in worker process."""
-        loop.run_until_complete(loop.create_task(worker.stop()))
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, handle_sigterm)
-
     async def worker_start(w: "Worker") -> None:
+        """Start worker with proper signal handling."""
+        shutdown_event = asyncio.Event()
+
+        def request_shutdown() -> None:
+            """Signal handler that requests graceful shutdown."""
+            shutdown_event.set()
+
+        # Register asyncio-compatible signal handlers (non-blocking)
+        loop.add_signal_handler(signal.SIGTERM, request_shutdown)
+        loop.add_signal_handler(signal.SIGINT, request_shutdown)
+
         try:
             await w.queue.connect()
-            await w.start()
+            # Run worker and wait for shutdown signal concurrently
+            worker_task = asyncio.create_task(w.start())
+            shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+            _done, pending = await asyncio.wait(
+                [worker_task, shutdown_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            # If shutdown was requested, stop the worker gracefully
+            if shutdown_event.is_set():
+                await w.stop()
+
+            # Cancel any pending tasks
+            for task in pending:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
         finally:
             await w.queue.disconnect()
+            # Remove signal handlers
+            loop.remove_signal_handler(signal.SIGTERM)
+            loop.remove_signal_handler(signal.SIGINT)
 
     try:
         if worker.separate_process:
-            loop.run_until_complete(loop.create_task(worker_start(worker)))
+            loop.run_until_complete(worker_start(worker))
     except KeyboardInterrupt:
         loop.run_until_complete(loop.create_task(worker.stop()))

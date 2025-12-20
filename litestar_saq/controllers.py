@@ -45,7 +45,7 @@ def build_controller(  # noqa: C901
         </head>
         <body>
             <div id="app"></div>
-            <script>const root_path = "{escaped_root}/";</script>
+            <script>const root_path = "{escaped_root}";</script>
             <script src="{escaped_root}/static/snabbdom.js.gz"></script>
             <script src="{escaped_root}/static/app.js"></script>
         </body>
@@ -236,7 +236,6 @@ def build_controller(  # noqa: C901
                 status_code=HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # static site
         @get(
             [
                 url_base,
