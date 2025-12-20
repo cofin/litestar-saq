@@ -25,9 +25,10 @@ if TYPE_CHECKING:
 class SAQPlugin(InitPluginProtocol, CLIPlugin):
     """SAQ plugin."""
 
-    __slots__ = ("_config", "_enable_otel", "_otel_tracer", "_processes", "_worker_instances")
+    __slots__ = ("_config", "_enable_otel", "_otel_tracer", "_processes", "_shutdown_timeout", "_worker_instances")
 
-    WORKER_SHUTDOWN_TIMEOUT = 5.0  # seconds
+    DEFAULT_SHUTDOWN_TIMEOUT = 5.0  # seconds when no grace period configured
+    SHUTDOWN_BUFFER = 2.0  # extra time for signal propagation
     WORKER_JOIN_TIMEOUT = 1.0  # seconds
 
     def __init__(self, config: "SAQConfig") -> None:
@@ -142,6 +143,26 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     def remove_workers(self) -> None:
         self._worker_instances = None
 
+    def _get_shutdown_timeout(self) -> float:
+        """Calculate the shutdown timeout from worker configurations.
+
+        Returns the maximum shutdown_grace_period_s from all workers plus
+        buffer time. Falls back to DEFAULT_SHUTDOWN_TIMEOUT if no grace
+        periods are configured.
+
+        Returns:
+            Shutdown timeout in seconds.
+        """
+        workers = self.get_workers().values()
+        grace_periods = [
+            w._shutdown_grace_period_s  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+            for w in workers
+            if hasattr(w, "_shutdown_grace_period_s") and w._shutdown_grace_period_s is not None  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+        ]
+        if grace_periods:
+            return max(grace_periods) + self.SHUTDOWN_BUFFER
+        return self.DEFAULT_SHUTDOWN_TIMEOUT
+
     def get_queues(self) -> "TaskQueues":
         return self._config.get_queues()
 
@@ -166,11 +187,14 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
 
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
         self._processes: list[Process] = []
+        self._shutdown_timeout = self._get_shutdown_timeout()
 
         def handle_shutdown(_signum: Any, _frame: Any) -> None:
             """Handle shutdown signals gracefully."""
-            console.print("[yellow]Received shutdown signal, stopping workers...[/]")
-            self._terminate_workers(self._processes)
+            console.print(
+                f"[yellow]Received shutdown signal, stopping workers (timeout: {self._shutdown_timeout:.1f}s)...[/]"
+            )
+            self._terminate_workers(self._processes, timeout=self._shutdown_timeout)
             sys.exit(0)
 
         # Register signal handlers
@@ -198,17 +222,19 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             console.print(f"[red]Error in worker processes: {e}[/]")
             raise
         finally:
-            console.print("[yellow]Shutting down SAQ workers...[/]")
-            self._terminate_workers(self._processes)
+            console.print(f"[yellow]Shutting down SAQ workers (timeout: {self._shutdown_timeout:.1f}s)...[/]")
+            self._terminate_workers(self._processes, timeout=self._shutdown_timeout)
             console.print("[yellow]SAQ workers stopped.[/]")
 
     @staticmethod
-    def _terminate_workers(processes: "list[Process]", timeout: float = 5.0) -> None:
+    def _terminate_workers(processes: "list[Process]", timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> None:
         """Gracefully terminate worker processes with timeout.
 
         Args:
             processes: List of worker processes to terminate
-            timeout: Maximum time to wait for graceful shutdown in seconds
+            timeout: Maximum time to wait for graceful shutdown in seconds.
+                Should be at least as long as the worker's shutdown_grace_period_s
+                plus buffer time for signal propagation.
         """
         # Send SIGTERM to all processes
         from litestar.cli._utils import console  # pyright: ignore

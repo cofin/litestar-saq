@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     import multiprocessing
+    from collections.abc import Collection
 
     from click import Group
     from litestar import Litestar
@@ -14,16 +15,46 @@ if TYPE_CHECKING:
     from litestar_saq.base import Worker
     from litestar_saq.plugin import SAQPlugin
 
+# Default timeout for graceful shutdown when no grace period is configured
+DEFAULT_SHUTDOWN_TIMEOUT = 5.0
+# Extra buffer time to allow for signal propagation and cleanup
+SHUTDOWN_BUFFER = 2.0
+
+
+def get_max_shutdown_timeout(workers: "Collection[Worker]") -> float:
+    """Calculate the maximum shutdown timeout from worker configurations.
+
+    The timeout is the maximum of all workers' shutdown_grace_period_s plus
+    a buffer for signal propagation. Falls back to DEFAULT_SHUTDOWN_TIMEOUT
+    if no grace periods are configured.
+
+    Args:
+        workers: Collection of worker instances.
+
+    Returns:
+        Maximum shutdown timeout in seconds.
+    """
+    grace_periods = [
+        w._shutdown_grace_period_s  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+        for w in workers
+        if hasattr(w, "_shutdown_grace_period_s") and w._shutdown_grace_period_s is not None  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+    ]
+    if grace_periods:
+        return max(grace_periods) + SHUTDOWN_BUFFER
+    return DEFAULT_SHUTDOWN_TIMEOUT
+
 
 def _terminate_worker_processes(
     processes: "list[multiprocessing.Process]",
-    timeout: float = 5.0,
+    timeout: float = DEFAULT_SHUTDOWN_TIMEOUT,
 ) -> None:
     """Gracefully terminate worker processes with timeout.
 
     Args:
         processes: List of worker processes to terminate
-        timeout: Maximum time to wait for graceful shutdown in seconds
+        timeout: Maximum time to wait for graceful shutdown in seconds.
+            Should be at least as long as the worker's shutdown_grace_period_s
+            plus buffer time for signal propagation.
     """
     from litestar.cli._utils import console  # pyright: ignore
 
@@ -107,12 +138,13 @@ def build_cli_app() -> "Group":  # noqa: C901, PLR0915
         show_saq_info(app, workers, plugin)
         managed_workers = list(plugin.get_workers().values())
         processes: list[multiprocessing.Process] = []
+        shutdown_timeout = get_max_shutdown_timeout(managed_workers)
 
         def handle_shutdown_signal(signum: int, _frame: Any) -> None:
             """Handle shutdown signals (SIGTERM/SIGINT) for graceful shutdown."""
             sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
-            console.print(f"[yellow]Received {sig_name}, stopping workers...[/]")
-            _terminate_worker_processes(processes)
+            console.print(f"[yellow]Received {sig_name}, stopping workers (timeout: {shutdown_timeout:.1f}s)...[/]")
+            _terminate_worker_processes(processes, timeout=shutdown_timeout)
             loop = asyncio.get_event_loop()
             for w in managed_workers:
                 loop.run_until_complete(w.stop())
