@@ -427,7 +427,9 @@ class QueueConfig:
         if self._broker_type is None and self.broker_instance is not None:
             if self._is_instance_of(self.broker_instance, "psycopg_pool", "AsyncConnectionPool"):
                 self._broker_type = "postgres"
-            elif self._is_instance_of(self.broker_instance, "redis", "Redis"):
+            elif self._is_instance_of(self.broker_instance, "redis.asyncio", "Redis") or self._is_instance_of(
+                self.broker_instance, "redis", "Redis"
+            ):
                 self._broker_type = "redis"
             elif self._is_instance_of(self.broker_instance, "saq.queue.http", "HttpQueue"):
                 self._broker_type = "http"
@@ -464,7 +466,9 @@ class QueueConfig:
                 from saq.queue.postgres import PostgresQueue
 
                 self._queue_class = PostgresQueue
-            elif self._is_instance_of(self.broker_instance, "redis", "Redis"):
+            elif self._is_instance_of(self.broker_instance, "redis.asyncio", "Redis") or self._is_instance_of(
+                self.broker_instance, "redis", "Redis"
+            ):
                 from saq.queue.redis import RedisQueue
 
                 self._queue_class = RedisQueue

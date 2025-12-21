@@ -1,10 +1,13 @@
+import contextlib
 import signal
 import sys
 import time
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 if TYPE_CHECKING:
+    import asyncio
     import multiprocessing
+    from collections.abc import Collection
 
     from click import Group
     from litestar import Litestar
@@ -13,16 +16,46 @@ if TYPE_CHECKING:
     from litestar_saq.base import Worker
     from litestar_saq.plugin import SAQPlugin
 
+# Default timeout for graceful shutdown when no grace period is configured
+DEFAULT_SHUTDOWN_TIMEOUT = 5.0
+# Extra buffer time to allow for signal propagation and cleanup
+SHUTDOWN_BUFFER = 2.0
+
+
+def get_max_shutdown_timeout(workers: "Collection[Worker]") -> float:
+    """Calculate the maximum shutdown timeout from worker configurations.
+
+    The timeout is the maximum of all workers' shutdown_grace_period_s plus
+    a buffer for signal propagation. Falls back to DEFAULT_SHUTDOWN_TIMEOUT
+    if no grace periods are configured.
+
+    Args:
+        workers: Collection of worker instances.
+
+    Returns:
+        Maximum shutdown timeout in seconds.
+    """
+    grace_periods: list[float] = []
+    for worker in workers:
+        grace_period = getattr(worker, "_shutdown_grace_period_s", None)
+        if grace_period is not None:
+            grace_periods.append(grace_period)
+    if grace_periods:
+        return max(grace_periods) + SHUTDOWN_BUFFER
+    return DEFAULT_SHUTDOWN_TIMEOUT
+
 
 def _terminate_worker_processes(
     processes: "list[multiprocessing.Process]",
-    timeout: float = 5.0,
+    timeout: float = DEFAULT_SHUTDOWN_TIMEOUT,
 ) -> None:
     """Gracefully terminate worker processes with timeout.
 
     Args:
         processes: List of worker processes to terminate
-        timeout: Maximum time to wait for graceful shutdown in seconds
+        timeout: Maximum time to wait for graceful shutdown in seconds.
+            Should be at least as long as the worker's shutdown_grace_period_s
+            plus buffer time for signal propagation.
     """
     from litestar.cli._utils import console  # pyright: ignore
 
@@ -46,6 +79,101 @@ def _terminate_worker_processes(
                 p.join(timeout=1.0)
             except Exception:  # noqa: BLE001
                 console.print(f"[red]Error killing worker process: {p.name}[/]")
+
+
+def _get_event_loop() -> "asyncio.AbstractEventLoop":
+    import asyncio
+
+    try:
+        return asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
+
+
+def _register_shutdown_handlers(
+    loop: "asyncio.AbstractEventLoop",
+    shutdown_event: "asyncio.Event",
+) -> Callable[[], None]:
+    signal_handlers_registered = False
+    fallback_handlers_registered = False
+    original_sigterm: Any = None
+    original_sigint: Any = None
+
+    def request_shutdown() -> None:
+        shutdown_event.set()
+
+    try:
+        loop.add_signal_handler(signal.SIGTERM, request_shutdown)
+        loop.add_signal_handler(signal.SIGINT, request_shutdown)
+        signal_handlers_registered = True
+    except (NotImplementedError, RuntimeError):
+        original_sigterm = signal.getsignal(signal.SIGTERM)
+        original_sigint = signal.getsignal(signal.SIGINT)
+
+        def fallback_handler(_signum: int, _frame: Any) -> None:
+            loop.call_soon_threadsafe(shutdown_event.set)
+
+        try:
+            signal.signal(signal.SIGTERM, fallback_handler)
+            signal.signal(signal.SIGINT, fallback_handler)
+            fallback_handlers_registered = True
+        except ValueError:
+            fallback_handlers_registered = False
+
+    def cleanup() -> None:
+        if signal_handlers_registered:
+            loop.remove_signal_handler(signal.SIGTERM)
+            loop.remove_signal_handler(signal.SIGINT)
+            return
+        if not fallback_handlers_registered:
+            return
+        if original_sigterm is not None:
+            with contextlib.suppress(ValueError):
+                signal.signal(signal.SIGTERM, original_sigterm)
+        if original_sigint is not None:
+            with contextlib.suppress(ValueError):
+                signal.signal(signal.SIGINT, original_sigint)
+
+    return cleanup
+
+
+async def _run_worker_with_shutdown(worker: "Worker") -> None:
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    shutdown_event = asyncio.Event()
+    cleanup_handlers = _register_shutdown_handlers(loop, shutdown_event)
+
+    try:
+        await worker.queue.connect()
+        worker_task = asyncio.create_task(worker.start())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        done, pending = await asyncio.wait(
+            [worker_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        if worker_task in done:
+            worker_task.result()
+
+        if shutdown_event.is_set():
+            await worker.stop()
+            if not worker_task.done():
+                worker_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await worker_task
+            pending.discard(worker_task)
+
+        for task in pending:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+    finally:
+        await worker.queue.disconnect()
+        cleanup_handlers()
 
 
 def build_cli_app() -> "Group":  # noqa: C901, PLR0915
@@ -106,12 +234,13 @@ def build_cli_app() -> "Group":  # noqa: C901, PLR0915
         show_saq_info(app, workers, plugin)
         managed_workers = list(plugin.get_workers().values())
         processes: list[multiprocessing.Process] = []
+        shutdown_timeout = get_max_shutdown_timeout(managed_workers)
 
         def handle_shutdown_signal(signum: int, _frame: Any) -> None:
             """Handle shutdown signals (SIGTERM/SIGINT) for graceful shutdown."""
             sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
-            console.print(f"[yellow]Received {sig_name}, stopping workers...[/]")
-            _terminate_worker_processes(processes)
+            console.print(f"[yellow]Received {sig_name}, stopping workers (timeout: {shutdown_timeout:.1f}s)...[/]")
+            _terminate_worker_processes(processes, timeout=shutdown_timeout)
             loop = asyncio.get_event_loop()
             for w in managed_workers:
                 loop.run_until_complete(w.stop())
@@ -228,15 +357,9 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
         worker: The worker instance to run.
         logging_config: Optional logging configuration to apply.
     """
-    import asyncio
-
     from litestar.logging.config import StructLoggingConfig
 
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    loop = _get_event_loop()
 
     if logging_config is not None:
         logging_config.configure()
@@ -246,24 +369,10 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
     if worker.separate_process:
         worker.configure_structlog_context()
         if isinstance(logging_config, StructLoggingConfig) and logging_config.standard_lib_logging_config is not None:
-            _ = logging_config.standard_lib_logging_config.configure()
-
-    def handle_sigterm(_signum: int, _frame: Any) -> None:
-        """Handle SIGTERM in worker process."""
-        loop.run_until_complete(loop.create_task(worker.stop()))
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, handle_sigterm)
-
-    async def worker_start(w: "Worker") -> None:
-        try:
-            await w.queue.connect()
-            await w.start()
-        finally:
-            await w.queue.disconnect()
+            logging_config.standard_lib_logging_config.configure()
 
     try:
         if worker.separate_process:
-            loop.run_until_complete(loop.create_task(worker_start(worker)))
+            loop.run_until_complete(_run_worker_with_shutdown(worker))
     except KeyboardInterrupt:
         loop.run_until_complete(loop.create_task(worker.stop()))

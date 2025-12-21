@@ -170,6 +170,16 @@ async def _heartbeat_loop(job: "Optional[Job]", interval: float) -> None:
         return
 
     job_id = getattr(job, "id", "unknown")
+    logger.info(
+        "Heartbeat monitoring started for job %s (interval: %.1fs)",
+        job_id,
+        interval,
+        extra={
+            "job_id": job_id,
+            "event": "heartbeat_started",
+            "interval": interval,
+        },
+    )
 
     try:
         while True:

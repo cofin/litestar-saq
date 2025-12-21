@@ -1,6 +1,6 @@
 import signal
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, Mock, patch
+from typing import TYPE_CHECKING, Any
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -184,28 +184,49 @@ def test_terminate_worker_processes_multiple_processes() -> None:
 
 
 def test_signal_handlers_registered_in_run_saq_worker() -> None:
-    """Test that SIGTERM handler is registered in run_saq_worker."""
+    """Test that SIGTERM and SIGINT handlers are registered via loop.add_signal_handler."""
     import asyncio
 
     from litestar_saq.cli import run_saq_worker
 
     mock_worker = Mock()
-    mock_worker.separate_process = False  # Don't actually run worker
-
-    original_handler = signal.getsignal(signal.SIGTERM)
+    mock_worker.separate_process = True  # Signal handlers only registered for separate_process
+    mock_worker.queue = MagicMock()
+    mock_worker.queue.connect = AsyncMock()
+    mock_worker.queue.disconnect = AsyncMock()
+    mock_worker.start = AsyncMock()  # Will complete immediately
+    mock_worker.stop = AsyncMock()
 
     try:
-        # Patch asyncio.get_event_loop at the module level where it's imported
-        with patch.object(asyncio, "get_event_loop") as mock_get_loop:
-            mock_loop = MagicMock()
-            mock_get_loop.return_value = mock_loop
+        original_loop = asyncio.get_event_loop()
+    except RuntimeError:
+        original_loop = None
 
-            run_saq_worker(mock_worker, None)
+    # Create a real event loop for this test
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
-            # Verify SIGTERM handler was registered
-            current_handler = signal.getsignal(signal.SIGTERM)
-            assert current_handler != original_handler
-            assert callable(current_handler)
+    # Track signal handler registrations
+    registered_signals: list[int] = []
+    original_add_handler = loop.add_signal_handler
+
+    def tracking_add_handler(sig: int, _callback: Any, *_args: Any) -> None:
+        registered_signals.append(sig)
+        # Don't actually register to avoid side effects
+
+    try:
+        loop.add_signal_handler = tracking_add_handler  # type: ignore[method-assign]
+
+        # Run the worker (it will complete immediately due to mocked start)
+        run_saq_worker(mock_worker, None)
+
+        # Verify both SIGTERM and SIGINT were registered
+        assert signal.SIGTERM in registered_signals, "SIGTERM handler should be registered"
+        assert signal.SIGINT in registered_signals, "SIGINT handler should be registered"
     finally:
-        # Restore original handler
-        signal.signal(signal.SIGTERM, original_handler)
+        loop.add_signal_handler = original_add_handler  # type: ignore[method-assign]
+        loop.close()
+        if original_loop is None:
+            asyncio.set_event_loop(None)
+        else:
+            asyncio.set_event_loop(original_loop)
