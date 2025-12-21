@@ -154,11 +154,11 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             Shutdown timeout in seconds.
         """
         workers = self.get_workers().values()
-        grace_periods = [
-            w._shutdown_grace_period_s  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
-            for w in workers
-            if hasattr(w, "_shutdown_grace_period_s") and w._shutdown_grace_period_s is not None  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
-        ]
+        grace_periods: list[float] = []
+        for worker in workers:
+            grace_period = getattr(worker, "_shutdown_grace_period_s", None)
+            if grace_period is not None:
+                grace_periods.append(grace_period)
         if grace_periods:
             return max(grace_periods) + self.SHUTDOWN_BUFFER
         return self.DEFAULT_SHUTDOWN_TIMEOUT

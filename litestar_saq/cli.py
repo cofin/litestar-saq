@@ -2,9 +2,10 @@ import contextlib
 import signal
 import sys
 import time
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 if TYPE_CHECKING:
+    import asyncio
     import multiprocessing
     from collections.abc import Collection
 
@@ -34,11 +35,11 @@ def get_max_shutdown_timeout(workers: "Collection[Worker]") -> float:
     Returns:
         Maximum shutdown timeout in seconds.
     """
-    grace_periods = [
-        w._shutdown_grace_period_s  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
-        for w in workers
-        if hasattr(w, "_shutdown_grace_period_s") and w._shutdown_grace_period_s is not None  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
-    ]
+    grace_periods: list[float] = []
+    for worker in workers:
+        grace_period = getattr(worker, "_shutdown_grace_period_s", None)
+        if grace_period is not None:
+            grace_periods.append(grace_period)
     if grace_periods:
         return max(grace_periods) + SHUTDOWN_BUFFER
     return DEFAULT_SHUTDOWN_TIMEOUT
@@ -78,6 +79,90 @@ def _terminate_worker_processes(
                 p.join(timeout=1.0)
             except Exception:  # noqa: BLE001
                 console.print(f"[red]Error killing worker process: {p.name}[/]")
+
+
+def _get_event_loop() -> "asyncio.AbstractEventLoop":
+    import asyncio
+
+    try:
+        return asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
+
+
+def _register_shutdown_handlers(
+    loop: "asyncio.AbstractEventLoop",
+    shutdown_event: "asyncio.Event",
+) -> Callable[[], None]:
+    signal_handlers_registered = False
+    original_sigterm: Any = None
+    original_sigint: Any = None
+
+    def request_shutdown() -> None:
+        shutdown_event.set()
+
+    try:
+        loop.add_signal_handler(signal.SIGTERM, request_shutdown)
+        loop.add_signal_handler(signal.SIGINT, request_shutdown)
+        signal_handlers_registered = True
+    except (NotImplementedError, RuntimeError):
+        original_sigterm = signal.getsignal(signal.SIGTERM)
+        original_sigint = signal.getsignal(signal.SIGINT)
+
+        def fallback_handler(_signum: int, _frame: Any) -> None:
+            loop.call_soon_threadsafe(shutdown_event.set)
+
+        signal.signal(signal.SIGTERM, fallback_handler)
+        signal.signal(signal.SIGINT, fallback_handler)
+
+    def cleanup() -> None:
+        if signal_handlers_registered:
+            loop.remove_signal_handler(signal.SIGTERM)
+            loop.remove_signal_handler(signal.SIGINT)
+            return
+        if original_sigterm is not None:
+            signal.signal(signal.SIGTERM, original_sigterm)
+        if original_sigint is not None:
+            signal.signal(signal.SIGINT, original_sigint)
+
+    return cleanup
+
+
+async def _run_worker_with_shutdown(worker: "Worker") -> None:
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    shutdown_event = asyncio.Event()
+    cleanup_handlers = _register_shutdown_handlers(loop, shutdown_event)
+
+    try:
+        await worker.queue.connect()
+        worker_task = asyncio.create_task(worker.start())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        done, pending = await asyncio.wait(
+            [worker_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        if worker_task in done:
+            worker_task.result()
+
+        if shutdown_event.is_set():
+            await worker.stop()
+            with contextlib.suppress(asyncio.CancelledError):
+                await worker_task
+            pending.discard(worker_task)
+
+        for task in pending:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+    finally:
+        await worker.queue.disconnect()
+        cleanup_handlers()
 
 
 def build_cli_app() -> "Group":  # noqa: C901, PLR0915
@@ -261,15 +346,9 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
         worker: The worker instance to run.
         logging_config: Optional logging configuration to apply.
     """
-    import asyncio
-
     from litestar.logging.config import StructLoggingConfig
 
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    loop = _get_event_loop()
 
     if logging_config is not None:
         logging_config.configure()
@@ -281,46 +360,8 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
         if isinstance(logging_config, StructLoggingConfig) and logging_config.standard_lib_logging_config is not None:
             _ = logging_config.standard_lib_logging_config.configure()
 
-    async def worker_start(w: "Worker") -> None:
-        """Start worker with proper signal handling."""
-        shutdown_event = asyncio.Event()
-
-        def request_shutdown() -> None:
-            """Signal handler that requests graceful shutdown."""
-            shutdown_event.set()
-
-        # Register asyncio-compatible signal handlers (non-blocking)
-        loop.add_signal_handler(signal.SIGTERM, request_shutdown)
-        loop.add_signal_handler(signal.SIGINT, request_shutdown)
-
-        try:
-            await w.queue.connect()
-            # Run worker and wait for shutdown signal concurrently
-            worker_task = asyncio.create_task(w.start())
-            shutdown_task = asyncio.create_task(shutdown_event.wait())
-
-            _done, pending = await asyncio.wait(
-                [worker_task, shutdown_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-            # If shutdown was requested, stop the worker gracefully
-            if shutdown_event.is_set():
-                await w.stop()
-
-            # Cancel any pending tasks
-            for task in pending:
-                task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
-        finally:
-            await w.queue.disconnect()
-            # Remove signal handlers
-            loop.remove_signal_handler(signal.SIGTERM)
-            loop.remove_signal_handler(signal.SIGINT)
-
     try:
         if worker.separate_process:
-            loop.run_until_complete(worker_start(worker))
+            loop.run_until_complete(_run_worker_with_shutdown(worker))
     except KeyboardInterrupt:
         loop.run_until_complete(loop.create_task(worker.stop()))
