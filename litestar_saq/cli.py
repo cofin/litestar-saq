@@ -369,7 +369,7 @@ def run_saq_worker(worker: "Worker", logging_config: "Optional[BaseLoggingConfig
     if worker.separate_process:
         worker.configure_structlog_context()
         if isinstance(logging_config, StructLoggingConfig) and logging_config.standard_lib_logging_config is not None:
-            _ = logging_config.standard_lib_logging_config.configure()
+            logging_config.standard_lib_logging_config.configure()
 
     try:
         if worker.separate_process:

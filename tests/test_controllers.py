@@ -132,3 +132,18 @@ def test_api_routes_return_json_not_html() -> None:
         assert resp_ui.status_code == 200
         assert "text/html" in resp_ui.headers.get("content-type", "")
         assert "root_path" in resp_ui.text
+
+
+def test_queue_detail_returns_404_when_missing() -> None:
+    queues = TaskQueues(queues={"default": DummyQueue("default")})
+    controller = build_controller("/saq")
+
+    app = Litestar(
+        route_handlers=[controller],
+        dependencies={"task_queues": Provide(lambda: queues, sync_to_thread=False)},
+        signature_namespace={"TaskQueues": TaskQueues, "QueueInfo": QueueInfo},
+    )
+
+    with TestClient(app) as client:
+        resp = client.get("/saq/api/queues/missing")
+        assert resp.status_code == 404

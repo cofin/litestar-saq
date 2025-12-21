@@ -15,6 +15,11 @@ if TYPE_CHECKING:
 
 
 async def job_info(queue: "Queue", job_id: str) -> "Job":
+    """Return a job
+
+    Raises:
+        NotFoundException: If the queue or job is not found.
+    """
     job = await queue.job(job_id)
     if not job:
         msg = f"Could not find job ID {job_id}"
@@ -22,14 +27,22 @@ async def job_info(queue: "Queue", job_id: str) -> "Job":
     return cast("Job", job)
 
 
+def get_queue_or_404(task_queues: "TaskQueues", queue_id: str) -> "Queue":
+    """Return a queue or raise NotFoundException."""
+    queue = task_queues.queues.get(queue_id)
+    if queue is None:
+        msg = f"Could not find the {queue_id} queue"
+        raise NotFoundException(msg)
+    return queue
+
+
 @lru_cache(typed=True)
-def build_controller(  # noqa: C901
+def build_controller(
     url_base: str = "/saq",
     controller_guards: "Optional[list[Guard]]" = None,  # pyright: ignore[reportUnknownParameterType]
     include_in_schema_: bool = False,
 ) -> "type[Controller]":
     from litestar import Controller, MediaType, Response, get, post
-    from litestar.exceptions import NotFoundException
     from litestar.status_codes import HTTP_202_ACCEPTED, HTTP_500_INTERNAL_SERVER_ERROR
 
     normalized_root = url_base.rstrip("/") or "/saq"
@@ -99,10 +112,7 @@ def build_controller(  # noqa: C901
             Returns:
                 The queue information.
             """
-            queue = task_queues.get(queue_id)
-            if not queue:
-                msg = f"Could not find the {queue_id} queue"
-                raise NotFoundException(msg)
+            queue = get_queue_or_404(task_queues, queue_id)
             return {"queue": await queue.info(jobs=True)}
 
         @get(
@@ -130,10 +140,7 @@ def build_controller(  # noqa: C901
             Returns:
                 The job information.
             """
-            queue = task_queues.get(queue_id)
-            if not queue:
-                msg = f"Could not find the {queue_id} queue"
-                raise NotFoundException(msg)
+            queue = get_queue_or_404(task_queues, queue_id)
             job = await job_info(queue, job_id)
             job_dict = job.to_dict()
             if "kwargs" in job_dict:
@@ -160,16 +167,10 @@ def build_controller(  # noqa: C901
                 queue_id: The queue ID.
                 job_id: The job ID.
 
-            Raises:
-                NotFoundException: If the queue or job is not found.
-
             Returns:
                 The job information.
             """
-            queue = task_queues.get(queue_id)
-            if not queue:
-                msg = f"Could not find the {queue_id} queue"
-                raise NotFoundException(msg)
+            queue = get_queue_or_404(task_queues, queue_id)
             job = await job_info(queue, job_id)
             await job.retry("retried from ui")
             return {}
@@ -198,10 +199,7 @@ def build_controller(  # noqa: C901
             Returns:
                 The job information.
             """
-            queue = task_queues.get(queue_id)
-            if not queue:
-                msg = f"Could not find the {queue_id} queue"
-                raise NotFoundException(msg)
+            queue = get_queue_or_404(task_queues, queue_id)
             job = await job_info(queue, job_id)
             await job.abort("aborted from ui")
             return {}
