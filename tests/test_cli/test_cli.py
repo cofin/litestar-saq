@@ -197,6 +197,11 @@ def test_signal_handlers_registered_in_run_saq_worker() -> None:
     mock_worker.start = AsyncMock()  # Will complete immediately
     mock_worker.stop = AsyncMock()
 
+    try:
+        original_loop = asyncio.get_event_loop()
+    except RuntimeError:
+        original_loop = None
+
     # Create a real event loop for this test
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -221,3 +226,7 @@ def test_signal_handlers_registered_in_run_saq_worker() -> None:
     finally:
         loop.add_signal_handler = original_add_handler  # type: ignore[method-assign]
         loop.close()
+        if original_loop is None:
+            asyncio.set_event_loop(None)
+        else:
+            asyncio.set_event_loop(original_loop)

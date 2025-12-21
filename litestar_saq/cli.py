@@ -97,6 +97,7 @@ def _register_shutdown_handlers(
     shutdown_event: "asyncio.Event",
 ) -> Callable[[], None]:
     signal_handlers_registered = False
+    fallback_handlers_registered = False
     original_sigterm: Any = None
     original_sigint: Any = None
 
@@ -114,18 +115,26 @@ def _register_shutdown_handlers(
         def fallback_handler(_signum: int, _frame: Any) -> None:
             loop.call_soon_threadsafe(shutdown_event.set)
 
-        signal.signal(signal.SIGTERM, fallback_handler)
-        signal.signal(signal.SIGINT, fallback_handler)
+        try:
+            signal.signal(signal.SIGTERM, fallback_handler)
+            signal.signal(signal.SIGINT, fallback_handler)
+            fallback_handlers_registered = True
+        except ValueError:
+            fallback_handlers_registered = False
 
     def cleanup() -> None:
         if signal_handlers_registered:
             loop.remove_signal_handler(signal.SIGTERM)
             loop.remove_signal_handler(signal.SIGINT)
             return
+        if not fallback_handlers_registered:
+            return
         if original_sigterm is not None:
-            signal.signal(signal.SIGTERM, original_sigterm)
+            with contextlib.suppress(ValueError):
+                signal.signal(signal.SIGTERM, original_sigterm)
         if original_sigint is not None:
-            signal.signal(signal.SIGINT, original_sigint)
+            with contextlib.suppress(ValueError):
+                signal.signal(signal.SIGINT, original_sigint)
 
     return cleanup
 
@@ -152,6 +161,8 @@ async def _run_worker_with_shutdown(worker: "Worker") -> None:
 
         if shutdown_event.is_set():
             await worker.stop()
+            if not worker_task.done():
+                worker_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await worker_task
             pending.discard(worker_task)
