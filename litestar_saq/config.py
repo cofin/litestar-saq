@@ -253,7 +253,8 @@ class QueueConfig:
     """Number of jobs to process concurrently."""
     broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)  # pyright: ignore
     """Broker-specific options. For Redis or Postgres backends."""
-    broker_instance_options: "dict[str, Any]" = field(default_factory=dict)
+    broker_instance_options: "dict[str, Any]" = field(default_factory=dict)  # pyright: ignore
+    """Broker-specific options. For Redis, Postgres or HTTP backends."""
     tasks: "Collection[Union[Function[Context], tuple[str, Function[Context]], str]]" = field(  # pyright: ignore[reportUnknownVariableType]
         default_factory=list
     )
