@@ -253,6 +253,8 @@ class QueueConfig:
     """Number of jobs to process concurrently."""
     broker_options: "Union[RedisQueueOptions, PostgresQueueOptions, dict[str, Any]]" = field(default_factory=dict)  # pyright: ignore
     """Broker-specific options. For Redis or Postgres backends."""
+    broker_instance_options: "dict[str, Any]" = field(default_factory=dict)  # pyright: ignore
+    """Broker-specific options. For Redis, Postgres or HTTP backends."""
     tasks: "Collection[Union[Function[Context], tuple[str, Function[Context]], str]]" = field(  # pyright: ignore[reportUnknownVariableType]
         default_factory=list
     )
@@ -356,7 +358,7 @@ class QueueConfig:
             from redis.asyncio import from_url as redis_from_url  # pyright: ignore[reportUnknownVariableType]
             from saq.queue.redis import RedisQueue
 
-            self.broker_instance = redis_from_url(self.dsn)
+            self.broker_instance = redis_from_url(self.dsn, **self.broker_instance_options)
             self._broker_type = "redis"
             self._queue_class = RedisQueue
         elif self.dsn and self.dsn.startswith("postgresql"):
@@ -367,6 +369,7 @@ class QueueConfig:
                 self.dsn,
                 check=AsyncConnectionPool.check_connection,  # pyright: ignore[reportUnknownMemberType]
                 open=False,
+                **self.broker_instance_options,
             )
             self._ensure_postgres_pool_defaults()
             self._broker_type = "postgres"
@@ -374,7 +377,7 @@ class QueueConfig:
         elif self.dsn and self.dsn.startswith("http"):
             from saq.queue.http import HttpQueue
 
-            self.broker_instance = HttpQueue(self.dsn)
+            self.broker_instance = HttpQueue(self.dsn, **self.broker_instance_options)
             self._broker_type = "http"
             self._queue_class = HttpQueue
         else:
