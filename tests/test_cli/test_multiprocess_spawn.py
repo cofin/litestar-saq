@@ -6,7 +6,7 @@ import pytest
 from redis.asyncio import from_url as redis_from_url
 
 from litestar_saq import QueueConfig, SAQConfig
-from litestar_saq.cli import _prepare_config_for_spawn
+from litestar_saq.cli import _prepare_config_for_spawn, _run_worker_in_child
 from litestar_saq.exceptions import ImproperConfigurationError
 
 
@@ -51,3 +51,9 @@ def test_prepare_config_for_spawn_rejects_broker_instance_without_dsn() -> None:
 
     with pytest.raises(ImproperConfigurationError, match="dsn"):
         _prepare_config_for_spawn(cfg)
+
+
+def test_run_worker_in_child_is_picklable() -> None:
+    # The function itself must be picklable so multiprocessing.Process can
+    # ship it as `target` under forkserver/spawn.
+    pickle.dumps(_run_worker_in_child)

@@ -224,6 +224,30 @@ def _prepare_config_for_spawn(config: "SAQConfig") -> "SAQConfig":
     return prepared
 
 
+def _run_worker_in_child(
+    queue_name: str,
+    config: "SAQConfig",
+    logging_config: "Optional[BaseLoggingConfig]",
+) -> None:
+    """Reconstruct the ``Worker`` inside the child process and run it.
+
+    This is the multiprocessing ``target`` for spawned workers. It must be
+    a top-level function so ``forkserver`` / ``spawn`` can pickle it. The
+    ``config`` argument must have been passed through
+    :func:`_prepare_config_for_spawn` first.
+
+    Args:
+        queue_name: Name of the queue this child should run.
+        config: Pickle-safe :class:`SAQConfig` (no live ``broker_instance``).
+        logging_config: Optional logging configuration to apply in the child.
+    """
+    from litestar_saq.plugin import SAQPlugin
+
+    plugin = SAQPlugin(config=config)
+    worker = plugin.get_workers()[queue_name]
+    run_saq_worker(worker, logging_config)
+
+
 def build_cli_app() -> "Group":  # noqa: C901, PLR0915
     import asyncio
     import multiprocessing
