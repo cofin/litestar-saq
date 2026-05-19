@@ -217,6 +217,9 @@ def _prepare_config_for_spawn(config: "SAQConfig") -> "SAQConfig":
             raise ImproperConfigurationError(msg)
 
     prepared = copy.deepcopy(config)
+    # Null out the live queue instances on the config itself — these hold live
+    # broker clients that are not picklable under forkserver/spawn.
+    prepared.queue_instances = None
     for qc in prepared.queue_configs:
         qc.broker_instance = None
         qc._broker_type = None  # noqa: SLF001
@@ -251,7 +254,6 @@ def _run_worker_in_child(
 def build_cli_app() -> "Group":  # noqa: C901, PLR0915
     import asyncio
     import multiprocessing
-    import platform
     from typing import cast
 
     from click import IntRange, group, option
@@ -292,9 +294,6 @@ def build_cli_app() -> "Group":  # noqa: C901, PLR0915
     ) -> None:
         """Run the API server."""
         console.rule("[yellow]Starting SAQ Workers[/]", align="left")
-        if platform.system() == "Darwin":
-            multiprocessing.set_start_method("fork", force=True)
-
         if app.logging_config is not None:
             app.logging_config.configure()
         if debug is not None or verbose is not None:
@@ -305,6 +304,7 @@ def build_cli_app() -> "Group":  # noqa: C901, PLR0915
             limited_start_up(plugin, queue_list)
         show_saq_info(app, workers, plugin)
         managed_workers = list(plugin.get_workers().values())
+        managed_queue_names = list(plugin.get_workers().keys())
         processes: list[multiprocessing.Process] = []
         shutdown_timeout = get_max_shutdown_timeout(managed_workers)
 
@@ -322,22 +322,24 @@ def build_cli_app() -> "Group":  # noqa: C901, PLR0915
         signal.signal(signal.SIGTERM, handle_shutdown_signal)
         signal.signal(signal.SIGINT, handle_shutdown_signal)
 
+        spawn_config = _prepare_config_for_spawn(plugin.config)
+
         if workers > 1:
             for _ in range(workers - 1):
-                for worker in managed_workers:
+                for queue_name in managed_queue_names:
                     p = multiprocessing.Process(
-                        target=run_saq_worker,
-                        args=(
-                            worker,
-                            app.logging_config,
-                        ),
+                        target=_run_worker_in_child,
+                        args=(queue_name, spawn_config, app.logging_config),
                     )
                     p.start()
                     processes.append(p)
 
-        if len(managed_workers) > 1:
-            for j in range(len(managed_workers) - 1):
-                p = multiprocessing.Process(target=run_saq_worker, args=(managed_workers[j + 1], app.logging_config))
+        if len(managed_queue_names) > 1:
+            for j in range(len(managed_queue_names) - 1):
+                p = multiprocessing.Process(
+                    target=_run_worker_in_child,
+                    args=(managed_queue_names[j + 1], spawn_config, app.logging_config),
+                )
                 p.start()
                 processes.append(p)
 
