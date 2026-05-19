@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from litestar.logging.config import BaseLoggingConfig
 
     from litestar_saq.base import Worker
+    from litestar_saq.config import SAQConfig
     from litestar_saq.plugin import SAQPlugin
 
 # Default timeout for graceful shutdown when no grace period is configured
@@ -176,6 +177,51 @@ async def _run_worker_with_shutdown(worker: "Worker") -> None:
     finally:
         await worker.queue.disconnect()
         cleanup_handlers()
+
+
+def _prepare_config_for_spawn(config: "SAQConfig") -> "SAQConfig":
+    """Return a deep-copied ``SAQConfig`` safe to pickle into a child process.
+
+    Each :class:`QueueConfig` in the copy has its live ``broker_instance``
+    (and cached broker-type/queue-class state) nulled out so the child can
+    rebuild fresh broker clients lazily from ``dsn``. This is required for
+    Python 3.14+ where ``multiprocessing`` defaults to ``forkserver`` /
+    ``spawn`` start methods, which pickle the target and its args (the live
+    ``redis.asyncio.Redis`` client is not picklable due to lambda-based
+    response callbacks).
+
+    Args:
+        config: The application's :class:`SAQConfig`.
+
+    Returns:
+        A deep-copied, pickle-safe :class:`SAQConfig`.
+
+    Raises:
+        ImproperConfigurationError: If any :class:`QueueConfig` was constructed
+            with only ``broker_instance`` and no ``dsn``. Such queues cannot
+            be rebuilt inside the child process.
+    """
+    import copy
+
+    from litestar_saq.exceptions import ImproperConfigurationError
+
+    for qc in config.queue_configs:
+        if qc.broker_instance is not None and not qc.dsn:
+            msg = (
+                f"QueueConfig(name={qc.name!r}) was constructed with "
+                "`broker_instance` and no `dsn`. Multi-process worker spawning "
+                "requires a `dsn` so the broker can be rebuilt inside the "
+                "child process. Provide a `dsn` or run with "
+                "`separate_process=False`."
+            )
+            raise ImproperConfigurationError(msg)
+
+    prepared = copy.deepcopy(config)
+    for qc in prepared.queue_configs:
+        qc.broker_instance = None
+        qc._broker_type = None  # noqa: SLF001
+        qc._queue_class = None  # noqa: SLF001
+    return prepared
 
 
 def build_cli_app() -> "Group":  # noqa: C901, PLR0915
