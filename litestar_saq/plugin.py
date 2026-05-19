@@ -171,15 +171,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
 
     @contextmanager  # pyright: ignore[reportDeprecated]
     def server_lifespan(self, app: "Litestar") -> "Iterator[None]":
-        import multiprocessing
-        import platform
-
         from litestar.cli._utils import console  # pyright: ignore
 
-        from litestar_saq.cli import run_saq_worker
-
-        if platform.system() == "Darwin":
-            multiprocessing.set_start_method("fork", force=True)
+        from litestar_saq.cli import _prepare_config_for_spawn, _run_worker_in_child
 
         if not self._config.use_server_lifespan:
             yield
@@ -201,16 +195,15 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         signal.signal(signal.SIGTERM, handle_shutdown)
         signal.signal(signal.SIGINT, handle_shutdown)
 
+        spawn_config = _prepare_config_for_spawn(self._config)
+
         try:
-            for worker_name, worker in self.get_workers().items():
+            for worker_name in self.get_workers():
                 for i in range(self.config.worker_processes):
                     console.print(f"[yellow]Starting worker process {i + 1} for {worker_name}[/]")
                     process = Process(
-                        target=run_saq_worker,
-                        args=(
-                            worker,
-                            app.logging_config,
-                        ),
+                        target=_run_worker_in_child,
+                        args=(worker_name, spawn_config, app.logging_config),
                         name=f"worker-{worker_name}-{i + 1}",
                     )
                     process.start()
