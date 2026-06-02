@@ -3,6 +3,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 from litestar.exceptions import NotFoundException
+from litestar.params import FromPath
 
 if TYPE_CHECKING:
     from litestar import Controller
@@ -131,7 +132,7 @@ def _build_controller_cached(
             summary="Queue Detail",
             description="List queue details.",
         )
-        async def queue_detail(self, task_queues: "TaskQueues", queue_id: str) -> "dict[str, QueueInfo]":
+        async def queue_detail(self, task_queues: "TaskQueues", queue_id: FromPath[str]) -> "dict[str, QueueInfo]":
             """Get queue information.
 
             Args:
@@ -157,7 +158,7 @@ def _build_controller_cached(
             description="List job details.",
         )
         async def job_detail(
-            self, task_queues: "TaskQueues", queue_id: str, job_id: str
+            self, task_queues: "TaskQueues", queue_id: FromPath[str], job_id: FromPath[str]
         ) -> "dict[str, dict[str, Any]]":
             """Get job information.
 
@@ -191,7 +192,9 @@ def _build_controller_cached(
             description="Retry a failed job..",
             status_code=HTTP_202_ACCEPTED,
         )
-        async def job_retry(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
+        async def job_retry(
+            self, task_queues: "TaskQueues", queue_id: FromPath[str], job_id: FromPath[str]
+        ) -> "dict[str, str]":
             """Retry job.
 
             Args:
@@ -217,7 +220,9 @@ def _build_controller_cached(
             description="Abort active job.",
             status_code=HTTP_202_ACCEPTED,
         )
-        async def job_abort(self, task_queues: "TaskQueues", queue_id: str, job_id: str) -> "dict[str, str]":
+        async def job_abort(
+            self, task_queues: "TaskQueues", queue_id: FromPath[str], job_id: FromPath[str]
+        ) -> "dict[str, str]":
             """Abort job.
 
             Args:
@@ -280,8 +285,8 @@ def _build_controller_cached(
         )
         async def index(
             self,
-            queue_id: Optional[str] = None,
-            job_id: Optional[str] = None,
+            queue_id: FromPath[Optional[str]] = None,
+            job_id: FromPath[Optional[str]] = None,
         ) -> str:
             return html_template
 

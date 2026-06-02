@@ -519,6 +519,6 @@ def _has_otel_plugin(app: "Litestar") -> bool:
             OpenTelemetryPlugin,  # pyright: ignore[reportAttributeAccessIssue,reportMissingImports,reportUnknownVariableType]
         )
 
-        return app.plugins.get(OpenTelemetryPlugin) is not None  # pyright: ignore[reportUnknownArgumentType]
+        return bool(app.plugins.get(OpenTelemetryPlugin))
     except ImportError:
         return False
