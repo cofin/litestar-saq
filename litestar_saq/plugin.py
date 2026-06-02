@@ -169,7 +169,7 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     def get_queue(self, name: str) -> "Queue":
         return self.get_queues().get(name)
 
-    @contextmanager
+    @contextmanager  # pyright: ignore[reportDeprecated]
     def server_lifespan(self, app: "Litestar") -> "Iterator[None]":
         import multiprocessing
         import platform
