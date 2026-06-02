@@ -81,6 +81,35 @@ app = Litestar(plugins=[saq], route_handlers=[SampleController])
 """
 
 
+def get_broker_instance_app_config_content() -> str:
+    """Generate app config content that supplies a live broker instance without a DSN."""
+    return """
+from redis.asyncio import from_url as redis_from_url
+
+from litestar import Litestar
+
+from litestar_saq import QueueConfig, SAQConfig, SAQPlugin
+
+
+async def background_worker_task(_ctx: dict) -> None:
+    return None
+
+
+saq = SAQPlugin(
+    config=SAQConfig(
+        queue_configs=[
+            QueueConfig(
+                broker_instance=redis_from_url("redis://localhost:6379/0"),
+                name="samples",
+                tasks=[background_worker_task],
+            ),
+        ],
+    ),
+)
+app = Litestar(plugins=[saq])
+"""
+
+
 async def test_basic_command(
     runner: CliRunner,
     create_app_file: CreateAppFileFixture,
@@ -94,6 +123,41 @@ async def test_basic_command(
 
     assert result.exit_code == 0
     assert "Checking SAQ worker status" in result.output
+
+
+def test_run_worker_single_parent_worker_allows_broker_instance_without_dsn(
+    runner: CliRunner,
+    create_app_file: CreateAppFileFixture,
+    root_command: LitestarGroup,
+    mocker: Any,
+) -> None:
+    app_file = create_app_file("broker_instance_app.py", content=get_broker_instance_app_config_content())
+    run_saq_worker = mocker.patch("litestar_saq.cli.run_saq_worker")
+    process = mocker.patch("multiprocessing.Process")
+
+    result = runner.invoke(root_command, ["--app", f"{app_file.stem}:app", "workers", "run"])
+
+    assert result.exit_code == 0, result.output
+    run_saq_worker.assert_called_once()
+    process.assert_not_called()
+
+
+def test_run_worker_fork_children_allow_broker_instance_without_dsn(
+    runner: CliRunner,
+    create_app_file: CreateAppFileFixture,
+    root_command: LitestarGroup,
+    mocker: Any,
+) -> None:
+    app_file = create_app_file("broker_instance_app.py", content=get_broker_instance_app_config_content())
+    run_saq_worker = mocker.patch("litestar_saq.cli.run_saq_worker")
+    mocker.patch("litestar_saq.cli.multiprocessing.get_start_method", return_value="fork")
+    process = mocker.patch("multiprocessing.Process")
+
+    result = runner.invoke(root_command, ["--app", f"{app_file.stem}:app", "workers", "run", "--workers", "2"])
+
+    assert result.exit_code == 0, result.output
+    run_saq_worker.assert_called_once()
+    process.assert_called_once()
 
 
 def test_terminate_worker_processes_graceful_shutdown() -> None:

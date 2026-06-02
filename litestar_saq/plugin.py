@@ -67,9 +67,9 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
 
         from litestar_saq.controllers import build_controller
 
-        app_config.dependencies.update(
-            {self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues)}
-        )
+        app_config.dependencies.update({
+            self._config.queues_dependency_key: Provide(dependency=self._config.provide_queues)
+        })
         if self._config.web_enabled:
             app_config.route_handlers.append(
                 create_static_files_router(
@@ -132,36 +132,8 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
 
         return self._worker_instances
 
-    def _get_otel_tracer(self) -> Any:
-        """Get or create the OTEL tracer."""
-        if self._otel_tracer is None:
-            from litestar_saq.instrumentation import get_tracer
-
-            self._otel_tracer = get_tracer(self._config.otel_tracer_name)
-        return self._otel_tracer
-
     def remove_workers(self) -> None:
         self._worker_instances = None
-
-    def _get_shutdown_timeout(self) -> float:
-        """Calculate the shutdown timeout from worker configurations.
-
-        Returns the maximum shutdown_grace_period_s from all workers plus
-        buffer time. Falls back to DEFAULT_SHUTDOWN_TIMEOUT if no grace
-        periods are configured.
-
-        Returns:
-            Shutdown timeout in seconds.
-        """
-        workers = self.get_workers().values()
-        grace_periods: list[float] = []
-        for worker in workers:
-            grace_period = getattr(worker, "_shutdown_grace_period_s", None)
-            if grace_period is not None:
-                grace_periods.append(grace_period)
-        if grace_periods:
-            return max(grace_periods) + self.SHUTDOWN_BUFFER
-        return self.DEFAULT_SHUTDOWN_TIMEOUT
 
     def get_queues(self) -> "TaskQueues":
         return self._config.get_queues()
@@ -173,7 +145,12 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
     def server_lifespan(self, app: "Litestar") -> "Iterator[None]":
         from litestar.cli._utils import console  # pyright: ignore
 
-        from litestar_saq.cli import _prepare_config_for_spawn, _run_worker_in_child
+        from litestar_saq.cli import (
+            prepare_config_for_spawn,
+            prepare_logging_config_for_spawn,
+            requires_multiprocessing_safe_args,
+            run_worker_in_child,
+        )
 
         if not self._config.use_server_lifespan:
             yield
@@ -195,15 +172,19 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
         signal.signal(signal.SIGTERM, handle_shutdown)
         signal.signal(signal.SIGINT, handle_shutdown)
 
-        spawn_config = _prepare_config_for_spawn(self._config)
+        requires_safe_args = requires_multiprocessing_safe_args()
+        child_config = prepare_config_for_spawn(self._config) if requires_safe_args else self._config
+        child_logging_config = (
+            prepare_logging_config_for_spawn(app.logging_config) if requires_safe_args else app.logging_config
+        )
 
         try:
             for worker_name in self.get_workers():
                 for i in range(self.config.worker_processes):
                     console.print(f"[yellow]Starting worker process {i + 1} for {worker_name}[/]")
                     process = Process(
-                        target=_run_worker_in_child,
-                        args=(worker_name, spawn_config, app.logging_config),
+                        target=run_worker_in_child,
+                        args=(worker_name, child_config, child_logging_config),
                         name=f"worker-{worker_name}-{i + 1}",
                     )
                     process.start()
@@ -218,6 +199,33 @@ class SAQPlugin(InitPluginProtocol, CLIPlugin):
             console.print(f"[yellow]Shutting down SAQ workers (timeout: {self._shutdown_timeout:.1f}s)...[/]")
             self._terminate_workers(self._processes, timeout=self._shutdown_timeout)
             console.print("[yellow]SAQ workers stopped.[/]")
+
+    def _get_otel_tracer(self) -> Any:
+        if self._otel_tracer is None:
+            from litestar_saq.instrumentation import get_tracer
+
+            self._otel_tracer = get_tracer(self._config.otel_tracer_name)
+        return self._otel_tracer
+
+    def _get_shutdown_timeout(self) -> float:
+        """Calculate the shutdown timeout from worker configurations.
+
+        Returns the maximum shutdown_grace_period_s from all workers plus
+        buffer time. Falls back to DEFAULT_SHUTDOWN_TIMEOUT if no grace
+        periods are configured.
+
+        Returns:
+            Shutdown timeout in seconds.
+        """
+        workers = self.get_workers().values()
+        grace_periods: list[float] = []
+        for worker in workers:
+            grace_period = getattr(worker, "_shutdown_grace_period_s", None)
+            if grace_period is not None:
+                grace_periods.append(grace_period)
+        if grace_periods:
+            return max(grace_periods) + self.SHUTDOWN_BUFFER
+        return self.DEFAULT_SHUTDOWN_TIMEOUT
 
     @staticmethod
     def _terminate_workers(processes: "list[Process]", timeout: float = DEFAULT_SHUTDOWN_TIMEOUT) -> None:
