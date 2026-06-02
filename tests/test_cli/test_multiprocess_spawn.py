@@ -31,10 +31,13 @@ def test_prepare_config_for_spawn_nulls_broker_instance_when_dsn_present() -> No
     for qc in cfg.queue_configs:
         qc.get_broker()
         assert qc.broker_instance is not None
+    cfg.get_queues()
+    assert cfg.queue_instances is not None
 
     prepared = prepare_config_for_spawn(cfg)
 
     # Original is untouched.
+    assert cfg.queue_instances is not None
     for qc in cfg.queue_configs:
         assert qc.broker_instance is not None
 

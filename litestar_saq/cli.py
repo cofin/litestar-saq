@@ -340,15 +340,24 @@ def prepare_config_for_spawn(config: "SAQConfig") -> "SAQConfig":
             )
             raise ImproperConfigurationError(msg)
 
-    prepared = copy.deepcopy(config)
-    # Null out the live queue instances on the config itself; these hold live
-    # broker clients that are not picklable under forkserver/spawn.
-    prepared.queue_instances = None
-    for qc in prepared.queue_configs:
-        qc.broker_instance = None
-        setattr(qc, "_broker_type", None)
-        setattr(qc, "_queue_class", None)
-    return prepared
+    queue_states = [
+        (qc, qc.broker_instance, getattr(qc, "_broker_type", None), getattr(qc, "_queue_class", None))
+        for qc in config.queue_configs
+    ]
+    queue_instances = config.queue_instances
+    try:
+        config.queue_instances = None
+        for qc, _broker_instance, _broker_type, _queue_class in queue_states:
+            qc.broker_instance = None
+            setattr(qc, "_broker_type", None)
+            setattr(qc, "_queue_class", None)
+        return copy.deepcopy(config)
+    finally:
+        config.queue_instances = queue_instances
+        for qc, broker_instance, broker_type, queue_class in queue_states:
+            qc.broker_instance = broker_instance
+            setattr(qc, "_broker_type", broker_type)
+            setattr(qc, "_queue_class", queue_class)
 
 
 def run_worker_in_child(
