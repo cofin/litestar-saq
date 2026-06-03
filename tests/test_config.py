@@ -50,3 +50,18 @@ def test_broker_type_detection_with_async_redis(monkeypatch: pytest.MonkeyPatch)
     config.broker_instance = DummyAsyncRedis()  # type: ignore[assignment]
 
     assert config.broker_type == "redis"
+
+
+def test_postgres_queue_options_does_not_contain_deprecated_options() -> None:
+    """Verify that deprecated postgres lock options are not in PostgresQueueOptions."""
+    from litestar_saq.config import PostgresQueueOptions
+
+    assert "job_lock_keyspace" not in PostgresQueueOptions.__annotations__
+    assert "job_lock_sweep" not in PostgresQueueOptions.__annotations__
+
+
+def test_background_task_error_not_importable() -> None:
+    """Verify that BackgroundTaskError has been removed and cannot be imported."""
+    import litestar_saq.exceptions
+
+    assert not hasattr(litestar_saq.exceptions, "BackgroundTaskError")
