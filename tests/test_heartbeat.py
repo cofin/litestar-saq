@@ -1,6 +1,7 @@
 """Tests for HeartbeatManager."""
 
 import asyncio
+import logging
 import threading
 import time
 from unittest.mock import AsyncMock, Mock
@@ -10,6 +11,13 @@ import pytest
 from litestar_saq.heartbeat import HeartbeatManager
 
 pytestmark = pytest.mark.anyio
+
+
+def _wait_for_manager_loop(manager: HeartbeatManager) -> None:
+    deadline = time.monotonic() + 1.0
+    while manager._wake_event is None and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert manager._wake_event is not None
 
 
 # =============================================================================
@@ -167,6 +175,35 @@ def test_stop_terminates_thread() -> None:
 
     manager.stop()
 
+    assert not manager._thread.is_alive() if manager._thread else True
+
+
+def test_stop_does_not_log_thread_crashed(caplog: pytest.LogCaptureFixture) -> None:
+    """Test normal shutdown does not log the manager thread as crashed."""
+    queue_mock = Mock()
+    manager = HeartbeatManager(queue=queue_mock, flush_interval=30.0)
+    caplog.set_level(logging.ERROR, logger="litestar_saq.heartbeat")
+
+    manager.start()
+    _wait_for_manager_loop(manager)
+    manager.stop()
+
+    assert "HeartbeatManager thread crashed" not in caplog.text
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def test_stop_wakes_sleeping_manager_without_waiting_flush_interval() -> None:
+    """Test stop() wakes the manager even when the flush interval is long."""
+    queue_mock = Mock()
+    manager = HeartbeatManager(queue=queue_mock, flush_interval=30.0)
+
+    manager.start()
+    _wait_for_manager_loop(manager)
+    started = time.monotonic()
+
+    manager.stop()
+
+    assert time.monotonic() - started < 1.0
     assert not manager._thread.is_alive() if manager._thread else True
 
 
