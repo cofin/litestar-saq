@@ -94,6 +94,7 @@ class HeartbeatManager:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._wake_event: Optional[asyncio.Event] = None
         self._jobs: dict[str, Job] = {}  # job_id -> Job reference
         self._jobs_lock = threading.Lock()
 
@@ -126,9 +127,9 @@ class HeartbeatManager:
         """
         self._stop_event.set()
         # Interrupt the event loop to wake from asyncio.sleep()
-        if self._loop is not None:
+        if self._loop is not None and self._wake_event is not None:
             with contextlib.suppress(RuntimeError):
-                self._loop.call_soon_threadsafe(self._loop.stop)
+                self._loop.call_soon_threadsafe(self._wake_event.set)
         if self._thread is not None:
             self._thread.join(timeout=5.0)
             logger.debug("HeartbeatManager stopped")
@@ -177,17 +178,29 @@ class HeartbeatManager:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         try:
+            self._wake_event = asyncio.Event()
             self._loop.run_until_complete(self._manager_loop())
         except Exception:
             logger.exception("HeartbeatManager thread crashed")
         finally:
             self._loop.close()
+            self._loop = None
+            self._wake_event = None
 
     async def _manager_loop(self) -> None:
         """Main loop - flush pending heartbeats every interval."""
+        if self._wake_event is None:
+            return
+
         while not self._stop_event.is_set():
-            # Use wait with timeout for responsive shutdown
-            await asyncio.sleep(self._flush_interval)
+            # Wait for either the next flush interval or a shutdown wakeup.
+            try:
+                await asyncio.wait_for(self._wake_event.wait(), timeout=self._flush_interval)
+            except asyncio.TimeoutError:
+                pass
+            else:
+                self._wake_event.clear()
+
             if not self._stop_event.is_set():
                 await self._flush()
 
